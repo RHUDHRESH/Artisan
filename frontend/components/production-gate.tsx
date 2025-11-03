@@ -130,6 +130,16 @@ export function ProductionGate({ initialAnswers }: ProductionGateProps) {
       icon: <FileText className="text-neutral-700 dark:text-neutral-200 h-5 w-5 flex-shrink-0" />,
     },
     {
+      label: "Supervisor",
+      href: "#",
+      icon: <LayoutDashboard className="text-neutral-700 dark:text-neutral-200 h-5 w-5 flex-shrink-0" />,
+    },
+    {
+      label: "Tools",
+      href: "#",
+      icon: <Settings className="text-neutral-700 dark:text-neutral-200 h-5 w-5 flex-shrink-0" />,
+    },
+    {
       label: "Settings",
       href: "#",
       icon: <Settings className="text-neutral-700 dark:text-neutral-200 h-5 w-5 flex-shrink-0" />,
@@ -145,6 +155,8 @@ export function ProductionGate({ initialAnswers }: ProductionGateProps) {
       "Growth Marketer": "growth marketer",
       "Events": "events",
       "Materials & Equipment": "materials & equipment",
+      "Supervisor": "supervisor",
+      "Tools": "tools",
       "Context": "context",
       "Settings": "settings"
     };
@@ -217,6 +229,12 @@ export function ProductionGate({ initialAnswers }: ProductionGateProps) {
             {activeView === "dashboard" && (
               <DashboardView answers={initialAnswers} />
             )}
+            {activeView === "supervisor" && (
+              <SupervisorView answers={initialAnswers} />
+            )}
+            {activeView === "tools" && (
+              <ToolsView />
+            )}
             {activeView === "suppliers" && (
               <SuppliersView answers={initialAnswers} />
             )}
@@ -269,6 +287,237 @@ function DashboardView({ answers }: { answers: Record<string, string> }) {
           <h3 className="font-semibold">Experience</h3>
           <p className="text-gray-600">{answers.experience || "N/A"}</p>
         </div>
+      </div>
+    </div>
+  );
+}
+
+function SupervisorView({ answers }: { answers?: Record<string, string> }) {
+  const [goal, setGoal] = React.useState("Find verified suppliers and propose next actions");
+  const [maxSteps, setMaxSteps] = React.useState(5);
+  const [capabilities, setCapabilities] = React.useState<string[]>(["profile_analyst", "supply_hunter", "growth_marketer", "event_scout"]);
+  const [running, setRunning] = React.useState(false);
+  const [plan, setPlan] = React.useState<any[]>([]);
+  const [artifacts, setArtifacts] = React.useState<any[]>([]);
+  const [summary, setSummary] = React.useState<string>("");
+  const [error, setError] = React.useState<string | null>(null);
+  const [logs, setLogs] = React.useState<any[]>([]);
+  const wsRef = React.useRef<WebSocket | null>(null);
+
+  React.useEffect(() => {
+    const ws = new WebSocket("ws://localhost:8000/ws");
+    ws.onopen = () => ws.send(JSON.stringify({ type: "subscribe" }));
+    ws.onmessage = (event) => {
+      const data = JSON.parse(event.data);
+      if (data.type === "agent_progress") {
+        setLogs(prev => [...prev, { timestamp: data.timestamp, agent: data.agent, step: data.step, message: data.message, data: data.data }]);
+      }
+    };
+    ws.onerror = () => setError("WebSocket connection error");
+    wsRef.current = ws;
+    return () => ws.close();
+  }, []);
+
+  const runMission = async () => {
+    setRunning(true);
+    setPlan([]);
+    setArtifacts([]);
+    setSummary("");
+    setError(null);
+    setLogs([]);
+    try {
+      const ctx = answers || JSON.parse(localStorage.getItem("questionnaireAnswers") || "{}");
+      const body = {
+        goal,
+        context: {
+          craft_type: ctx.craft_type || "pottery",
+          supplies_needed: (ctx.supplies || "").split(",").map((s: string) => s.trim()).filter(Boolean),
+          location: { city: ctx.location?.split(",")[0] || "Jaipur", state: ctx.location?.split(",")[1] || "Rajasthan" },
+          current_products: (ctx.products || "").split(",").map((s: string) => s.trim()).filter(Boolean),
+          input_text: Object.values(ctx).join(" ")
+        },
+        constraints: { max_steps: maxSteps, step_timeout_s: 90, retries: 1, region_priority: "in-first" },
+        capabilities
+      };
+      const resp = await fetch("http://localhost:8000/agents/supervise/run", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body)
+      });
+      if (!resp.ok) {
+        const err = await resp.json().catch(() => ({ detail: `HTTP ${resp.status}` }));
+        throw new Error(err.detail || `Request failed: ${resp.status}`);
+      }
+      const data = await resp.json();
+      setPlan(data.plan || []);
+      setArtifacts(data.artifacts || []);
+      setSummary(data.summary || "");
+    } catch (e: any) {
+      setError(e?.message || "Mission failed");
+    } finally {
+      setRunning(false);
+    }
+  };
+
+  return (
+    <div>
+      <div className="flex justify-between items-center mb-4">
+        <h2 className="text-2xl font-bold">Supervisor</h2>
+      </div>
+
+      <div className="grid md:grid-cols-2 gap-4 mb-4">
+        <div>
+          <label className="block text-sm font-medium mb-1">Mission Goal</label>
+          <input value={goal} onChange={e => setGoal(e.target.value)} className="w-full border-2 border-black rounded p-2" />
+        </div>
+        <div>
+          <label className="block text-sm font-medium mb-1">Max Steps</label>
+          <input type="number" value={maxSteps} onChange={e => setMaxSteps(parseInt(e.target.value || '1'))} className="w-full border-2 border-black rounded p-2" />
+        </div>
+      </div>
+
+      <div className="mb-4">
+        <label className="block text-sm font-medium mb-1">Capabilities</label>
+        <div className="flex flex-wrap gap-2">
+          {[
+            { key: "profile_analyst", label: "Profile Analyst" },
+            { key: "supply_hunter", label: "Supply Hunter" },
+            { key: "growth_marketer", label: "Growth Marketer" },
+            { key: "event_scout", label: "Event Scout" },
+          ].map(opt => (
+            <label key={opt.key} className="flex items-center gap-2 border-2 border-black rounded px-2 py-1">
+              <input type="checkbox" checked={capabilities.includes(opt.key)} onChange={(e) => {
+                setCapabilities(prev => e.target.checked ? [...prev, opt.key] : prev.filter(x => x !== opt.key));
+              }} />
+              <span>{opt.label}</span>
+            </label>
+          ))}
+        </div>
+      </div>
+
+      <button onClick={runMission} disabled={running} className="px-4 py-2 bg-black text-white rounded hover:bg-gray-800 disabled:bg-gray-400 mb-4">
+        {running ? "Running Mission..." : "Run Supervised Mission"}
+      </button>
+
+      {error && (
+        <div className="mb-4 p-4 bg-red-50 border-2 border-red-500 rounded-lg">
+          <div className="flex items-center gap-2">
+            <span className="text-red-600 font-bold">⚠️</span>
+            <p className="font-semibold text-red-800">Error: {error}</p>
+          </div>
+        </div>
+      )}
+
+      {logs.length > 0 && (
+        <div className="mb-6">
+          <h3 className="text-lg font-semibold mb-2">Team Log</h3>
+          <div className="space-y-2 max-h-96 overflow-y-auto">
+            {logs.map((log, idx) => (
+              <div key={idx} className="p-3 border-2 rounded-lg border-gray-200">
+                <div className="flex justify-between items-start">
+                  <div className="flex-1">
+                    <div className="flex items-center gap-2">
+                      <span className="text-sm font-semibold">{log.agent}</span>
+                      <span className="text-xs text-gray-500">{new Date(log.timestamp).toLocaleTimeString()}</span>
+                    </div>
+                    <p className="text-sm mt-1">{log.message}</p>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {plan.length > 0 && (
+        <div className="mb-6">
+          <h3 className="text-lg font-semibold mb-2">Plan ({plan.length} steps)</h3>
+          <pre className="text-xs bg-gray-50 p-3 border rounded overflow-auto">{JSON.stringify(plan, null, 2)}</pre>
+        </div>
+      )}
+
+      {artifacts.length > 0 && (
+        <div className="mb-6">
+          <h3 className="text-lg font-semibold mb-2">Artifacts ({artifacts.length})</h3>
+          <pre className="text-xs bg-gray-50 p-3 border rounded overflow-auto">{JSON.stringify(artifacts, null, 2)}</pre>
+        </div>
+      )}
+
+      {summary && (
+        <div className="mb-6">
+          <h3 className="text-lg font-semibold mb-2">Summary</h3>
+          <div className="text-sm whitespace-pre-wrap border rounded p-3 bg-gray-50">{summary}</div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function ToolsView() {
+  const [tools, setTools] = React.useState<any[]>([]);
+  const [error, setError] = React.useState<string | null>(null);
+  const [loading, setLoading] = React.useState(false);
+
+  const loadTools = async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const resp = await fetch("http://localhost:8000/agents/tools");
+      if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+      const data = await resp.json();
+      setTools(data.tools || []);
+    } catch (e: any) {
+      setError(e?.message || "Failed to load tools");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  React.useEffect(() => { loadTools(); }, []);
+
+  return (
+    <div>
+      <div className="flex justify-between items-center mb-4">
+        <h2 className="text-2xl font-bold">Tools</h2>
+        <button onClick={loadTools} disabled={loading} className="px-3 py-1 text-sm bg-black text-white rounded hover:bg-gray-800 disabled:bg-gray-400">
+          {loading ? "Refreshing..." : "Refresh"}
+        </button>
+      </div>
+      {error && (
+        <div className="mb-4 p-4 bg-red-50 border-2 border-red-500 rounded-lg">
+          <div className="flex items-center gap-2">
+            <span className="text-red-600 font-bold">⚠️</span>
+            <p className="font-semibold text-red-800">Error: {error}</p>
+          </div>
+        </div>
+      )}
+      <div className="grid gap-3">
+        {tools.map((t, idx) => (
+          <div key={idx} className="p-3 border-2 border-black rounded">
+            <div className="flex justify-between items-start">
+              <div>
+                <h3 className="font-semibold">{t.name}</h3>
+                <p className="text-sm text-gray-600 mt-1">{t.description}</p>
+              </div>
+            </div>
+            <details className="mt-2">
+              <summary className="cursor-pointer text-sm font-semibold">Schemas</summary>
+              <div className="grid md:grid-cols-2 gap-2 mt-2 text-xs">
+                <div>
+                  <div className="font-semibold">Input</div>
+                  <pre className="bg-gray-50 p-2 border rounded overflow-auto">{JSON.stringify(t.input_schema, null, 2)}</pre>
+                </div>
+                <div>
+                  <div className="font-semibold">Output</div>
+                  <pre className="bg-gray-50 p-2 border rounded overflow-auto">{JSON.stringify(t.output_schema, null, 2)}</pre>
+                </div>
+              </div>
+            </details>
+          </div>
+        ))}
+        {tools.length === 0 && !loading && !error && (
+          <p className="text-gray-600">No tools found.</p>
+        )}
       </div>
     </div>
   );

@@ -6,6 +6,7 @@ from typing import Dict, List
 from backend.core.ollama_client import OllamaClient
 from backend.core.vector_store import ArtisanVectorStore
 from loguru import logger
+from backend.agents.framework.tools import global_tool_registry
 
 
 class BaseAgent(ABC):
@@ -26,6 +27,8 @@ class BaseAgent(ABC):
         self.ollama = ollama_client
         self.vector_store = vector_store
         self.execution_logs: List[Dict] = []
+        # Shared tool registry for the whole agent team
+        self.tools = global_tool_registry()
         
         logger.info(f"Initialized {self.name} agent")
     

@@ -1,0 +1,12 @@
+{
+  "permissions": {
+    "allow": [
+      "WebSearch",
+      "Bash(cmd /c \"start.bat internal 2>&1 | head -50\")",
+      "Bash(dir:*)",
+      "Bash(nul)"
+    ],
+    "deny": [],
+    "ask": []
+  }
+}

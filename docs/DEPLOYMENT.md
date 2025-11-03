@@ -29,9 +29,9 @@ ollama list | grep gemma3
 
 ```bash
 # Create virtual environment
-python -m venv venv
-venv\Scripts\activate  # Windows
-source venv/bin/activate  # Linux/Mac
+python -m venv .venv
+.venv\Scripts\activate  # Windows
+source .venv/bin/activate  # Linux/Mac
 
 # Install dependencies
 pip install -r requirements.txt
@@ -53,12 +53,11 @@ LOG_LEVEL=INFO
 ### 5. Verify Installation
 
 ```bash
-# Run deployment check
-./deployment_check.sh  # Linux/Mac
-.\deployment_check.ps1  # Windows
-
 # Run tests
 pytest backend/tests/test_ollama_setup.py
+
+# Or check manually:
+python backend/tests/test_ollama_setup.py
 ```
 
 ---
@@ -78,13 +77,14 @@ pytest backend/tests/test_ollama_setup.py
    python main.py
    ```
 
-3. **Serve Frontend:**
-   - Option A: Open `frontend/index.html` directly
-   - Option B: Use simple HTTP server:
-     ```bash
-     cd frontend
-     python -m http.server 3000
-     ```
+3. **Start Frontend:**
+   ```bash
+   cd frontend
+   npm install  # First time only
+   npm run dev
+   ```
+   
+   Frontend will be available at http://localhost:3000
 
 ### Option 2: Systemd Service (Linux)
 
