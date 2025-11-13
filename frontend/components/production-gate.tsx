@@ -527,38 +527,66 @@ function SuppliersView({ answers: propAnswers }: { answers?: Record<string, stri
   const [isSearching, setIsSearching] = React.useState(false);
   const [searchLogs, setSearchLogs] = React.useState<any[]>([]);
   const [suppliers, setSuppliers] = React.useState<any[]>([]);
+  const [recentSuppliers, setRecentSuppliers] = React.useState<any[]>([]);
   const [expandedLog, setExpandedLog] = React.useState<number | null>(null);
   const [error, setError] = React.useState<string | null>(null);
+  const [loadingRecent, setLoadingRecent] = React.useState(false);
   const wsRef = React.useRef<WebSocket | null>(null);
+  const reconnectTimer = React.useRef<any>(null);
+
+  const connectWebSocket = React.useCallback(() => {
+    try {
+      const ws = new WebSocket("ws://localhost:8000/ws");
+      ws.onopen = () => {
+        ws.send(JSON.stringify({ type: "subscribe" }));
+      };
+      ws.onmessage = (event) => {
+        const data = JSON.parse(event.data);
+        if (data.type === "agent_progress") {
+          setSearchLogs(prev => [...prev, {
+            timestamp: data.timestamp,
+            agent: data.agent,
+            step: data.step,
+            message: data.message || data.step,
+            data: data.data
+          }]);
+        }
+      };
+      ws.onerror = () => {
+        setError("WebSocket connection lost. Reconnecting...");
+      };
+      ws.onclose = () => {
+        reconnectTimer.current = setTimeout(connectWebSocket, 5000);
+      };
+      wsRef.current = ws;
+    } catch (e) {
+      setError("WebSocket init failed");
+    }
+  }, []);
+
+  const loadRecentSuppliers = React.useCallback(async () => {
+    try {
+      setLoadingRecent(true);
+      const resp = await fetch("http://localhost:8000/agents/suppliers/recent");
+      if (resp.ok) {
+        const data = await resp.json();
+        setRecentSuppliers(Array.isArray(data.results) ? data.results : (data.suppliers || []));
+      }
+    } catch (e) {
+      // ignore
+    } finally {
+      setLoadingRecent(false);
+    }
+  }, []);
 
   React.useEffect(() => {
-    // Connect WebSocket for real-time updates
-    const ws = new WebSocket("ws://localhost:8000/ws");
-    ws.onopen = () => {
-      ws.send(JSON.stringify({ type: "subscribe" }));
-    };
-    ws.onmessage = (event) => {
-      const data = JSON.parse(event.data);
-      if (data.type === "agent_progress") {
-        setSearchLogs(prev => [...prev, {
-          timestamp: data.timestamp,
-          agent: data.agent,
-          step: data.step,
-          message: data.message || data.step,
-          data: data.data
-        }]);
-      }
-    };
-    ws.onerror = (err) => {
-      setError("WebSocket connection error");
-      console.error("WebSocket error:", err);
-    };
-    wsRef.current = ws;
-
+    connectWebSocket();
+    loadRecentSuppliers();
     return () => {
-      ws.close();
+      if (reconnectTimer.current) clearTimeout(reconnectTimer.current);
+      if (wsRef.current) wsRef.current.close();
     };
-  }, []);
+  }, [connectWebSocket, loadRecentSuppliers]);
 
   const startSupplierSearch = async () => {
     setIsSearching(true);
@@ -689,6 +717,32 @@ function SuppliersView({ answers: propAnswers }: { answers?: Record<string, stri
         </div>
       )}
 
+      {/* Recent Suppliers (if any, before searching) */}
+      {!isSearching && recentSuppliers.length > 0 && suppliers.length === 0 && (
+        <div className="mb-6">
+          <div className="flex items-center justify-between mb-2">
+            <h3 className="text-lg font-semibold">Recent Suppliers</h3>
+            <button onClick={loadRecentSuppliers} disabled={loadingRecent} className="px-3 py-1 text-sm bg-black text-white rounded hover:bg-gray-800 disabled:bg-gray-400">{loadingRecent ? "Refreshing..." : "Refresh"}</button>
+          </div>
+          <div className="grid gap-4">
+            {recentSuppliers.map((s, idx) => (
+              <div key={idx} className="border-2 border-black p-4 rounded-lg">
+                <h4 className="font-bold">{s.name || "Unknown Supplier"}</h4>
+                {s.location && (
+                  <p className="text-sm text-gray-600">📍 {s.location.city}{s.location.state ? ", " + s.location.state : ""}{s.location.country ? ", " + s.location.country : ""}</p>
+                )}
+                {s.products && Array.isArray(s.products) && (
+                  <p className="text-sm mt-1"><strong>Products:</strong> {s.products.join(", ")}</p>
+                )}
+                {s.contact?.website && (
+                  <a href={s.contact.website} target="_blank" rel="noopener noreferrer" className="text-blue-600 text-sm underline">Visit Website</a>
+                )}
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
       {/* Suppliers Results */}
       {suppliers.length > 0 && (
         <div>
@@ -747,31 +801,70 @@ function AgentView({
   const [isSearching, setIsSearching] = React.useState(false);
   const [searchLogs, setSearchLogs] = React.useState<any[]>([]);
   const [results, setResults] = React.useState<any[]>([]);
+  const [recentResults, setRecentResults] = React.useState<any[]>([]);
+  const [loadingRecent, setLoadingRecent] = React.useState(false);
   const [expandedLog, setExpandedLog] = React.useState<number | null>(null);
   const [error, setError] = React.useState<string | null>(null);
   const wsRef = React.useRef<WebSocket | null>(null);
+  const reconnectTimer = React.useRef<any>(null);
+
+  const connectWebSocket = React.useCallback(() => {
+    try {
+      const ws = new WebSocket("ws://localhost:8000/ws");
+      ws.onopen = () => {
+        ws.send(JSON.stringify({ type: "subscribe" }));
+      };
+      ws.onmessage = (event) => {
+        const data = JSON.parse(event.data);
+        if (data.type === "agent_progress") {
+          setSearchLogs(prev => [...prev, {
+            timestamp: data.timestamp,
+            agent: data.agent,
+            step: data.step,
+            message: data.message || data.step,
+            data: data.data
+          }]);
+        }
+      };
+      ws.onerror = () => setError("WebSocket connection lost. Reconnecting...");
+      ws.onclose = () => {
+        reconnectTimer.current = setTimeout(connectWebSocket, 5000);
+      };
+      wsRef.current = ws;
+    } catch (e) {
+      setError("WebSocket init failed");
+    }
+  }, []);
+
+  const loadRecent = React.useCallback(async () => {
+    try {
+      setLoadingRecent(true);
+      let url: string | null = null;
+      if (endpoint === "growth/analyze") url = "http://localhost:8000/agents/opportunities/recent";
+      else if (endpoint === "events/search") url = "http://localhost:8000/agents/events/recent";
+      else if (endpoint === "supply/search") url = "http://localhost:8000/agents/materials/recent";
+      if (!url) return;
+      const resp = await fetch(url);
+      if (resp.ok) {
+        const data = await resp.json();
+        const arr = data.results || data.events || data.opportunities || data.materials || [];
+        setRecentResults(Array.isArray(arr) ? arr : []);
+      }
+    } catch (e) {
+      // ignore
+    } finally {
+      setLoadingRecent(false);
+    }
+  }, [endpoint]);
 
   React.useEffect(() => {
-    const ws = new WebSocket("ws://localhost:8000/ws");
-    ws.onopen = () => {
-      ws.send(JSON.stringify({ type: "subscribe" }));
+    connectWebSocket();
+    loadRecent();
+    return () => {
+      if (reconnectTimer.current) clearTimeout(reconnectTimer.current);
+      if (wsRef.current) wsRef.current.close();
     };
-    ws.onmessage = (event) => {
-      const data = JSON.parse(event.data);
-      if (data.type === "agent_progress") {
-        setSearchLogs(prev => [...prev, {
-          timestamp: data.timestamp,
-          agent: data.agent,
-          step: data.step,
-          message: data.message || data.step,
-          data: data.data
-        }]);
-      }
-    };
-    ws.onerror = () => setError("WebSocket connection error");
-    wsRef.current = ws;
-    return () => ws.close();
-  }, []);
+  }, [connectWebSocket, loadRecent]);
 
   const startSearch = async () => {
     setIsSearching(true);
@@ -838,6 +931,16 @@ function AgentView({
             <span className="text-red-600 font-bold">⚠️</span>
             <p className="font-semibold text-red-800">Error: {error}</p>
           </div>
+        </div>
+      )}
+
+      {!isSearching && recentResults.length > 0 && results.length === 0 && (
+        <div className="mb-6">
+          <div className="flex items-center justify-between mb-2">
+            <h3 className="text-lg font-semibold">Recent</h3>
+            <button onClick={loadRecent} disabled={loadingRecent} className="px-3 py-1 text-sm bg-black text-white rounded hover:bg-gray-800 disabled:bg-gray-400">{loadingRecent ? "Refreshing..." : "Refresh"}</button>
+          </div>
+          <pre className="text-xs bg-gray-50 p-3 border rounded overflow-auto">{JSON.stringify(recentResults, null, 2)}</pre>
         </div>
       )}
 
@@ -952,21 +1055,76 @@ function GrowthMarketerView({ answers }: { answers?: Record<string, string> }) {
 }
 
 function EventsView({ answers }: { answers?: Record<string, string> }) {
+  const [city, setCity] = React.useState("");
+  const [dateFrom, setDateFrom] = React.useState("");
+  const [dateTo, setDateTo] = React.useState("");
+  const [recent, setRecent] = React.useState<any[]>([]);
+  const [loading, setLoading] = React.useState(false);
+  const [error, setError] = React.useState<string | null>(null);
+
+  const loadRecent = React.useCallback(async () => {
+    try {
+      setLoading(true);
+      setError(null);
+      const params = new URLSearchParams();
+      if (city) params.set("city", city);
+      if (dateFrom) params.set("date_from", dateFrom);
+      if (dateTo) params.set("date_to", dateTo);
+      const url = `http://localhost:8000/agents/events/recent${params.toString() ? `?${params.toString()}` : ""}`;
+      const resp = await fetch(url);
+      if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+      const data = await resp.json();
+      setRecent(data.results || data.events || []);
+    } catch (e: any) {
+      setError(e?.message || "Failed to load recent events");
+    } finally {
+      setLoading(false);
+    }
+  }, [city, dateFrom, dateTo]);
+
   return (
-    <AgentView
-      title="Events"
-      endpoint="events/search"
-      buttonText="Find Events"
-      answers={answers}
-      requestBuilder={(ans) => ({
-        craft_type: ans.craft_type || "pottery",
-        location: {
-          city: ans.location?.split(",")[0] || "Jaipur",
-          state: ans.location?.split(",")[1] || "Rajasthan"
-        },
-        travel_radius_km: 100
-      })}
-    />
+    <div className="space-y-6">
+      <div className="border-2 border-black p-4 rounded">
+        <div className="flex flex-col md:flex-row gap-3 md:items-end">
+          <div className="flex-1">
+            <label className="text-xs font-semibold">City</label>
+            <input className="w-full border border-gray-300 rounded p-2 text-sm" placeholder="e.g. Jaipur" value={city} onChange={(e) => setCity(e.target.value)} />
+          </div>
+          <div>
+            <label className="text-xs font-semibold">From (YYYY-MM-DD)</label>
+            <input className="border border-gray-300 rounded p-2 text-sm" placeholder="YYYY-MM-DD" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)} />
+          </div>
+          <div>
+            <label className="text-xs font-semibold">To (YYYY-MM-DD)</label>
+            <input className="border border-gray-300 rounded p-2 text-sm" placeholder="YYYY-MM-DD" value={dateTo} onChange={(e) => setDateTo(e.target.value)} />
+          </div>
+          <button onClick={loadRecent} disabled={loading} className="px-3 py-2 bg-black text-white rounded hover:bg-gray-800 disabled:bg-gray-400">{loading ? "Loading..." : "Load Recent"}</button>
+        </div>
+        {error && (
+          <div className="mt-2 p-2 bg-red-50 border-2 border-red-500 rounded"><p className="text-sm text-red-800 font-semibold">Error: {error}</p></div>
+        )}
+        {recent.length > 0 && (
+          <div className="mt-3">
+            <h3 className="text-lg font-semibold">Recent Events</h3>
+            <pre className="text-xs bg-gray-50 p-3 border rounded overflow-auto">{JSON.stringify(recent, null, 2)}</pre>
+          </div>
+        )}
+      </div>
+      <AgentView
+        title="Events"
+        endpoint="events/search"
+        buttonText="Find Events"
+        answers={answers}
+        requestBuilder={(ans) => ({
+          craft_type: ans.craft_type || "pottery",
+          location: {
+            city: ans.location?.split(",")[0] || "Jaipur",
+            state: ans.location?.split(",")[1] || "Rajasthan"
+          },
+          travel_radius_km: 100
+        })}
+      />
+    </div>
   );
 }
 
@@ -990,16 +1148,82 @@ function MaterialsView({ answers }: { answers?: Record<string, string> }) {
 }
 
 function ContextView({ answers }: { answers: Record<string, string> }) {
+  const [notes, setNotes] = React.useState("");
+  const [loading, setLoading] = React.useState(false);
+  const [saving, setSaving] = React.useState(false);
+  const [error, setError] = React.useState<string | null>(null);
+
+  const loadContext = React.useCallback(async () => {
+    try {
+      setLoading(true);
+      const resp = await fetch("http://localhost:8000/context");
+      if (resp.ok) {
+        const data = await resp.json();
+        const s = (data?.context?.notes as string) || "";
+        setNotes(s);
+      }
+    } catch (e: any) {
+      setError(e?.message || "Failed to load context");
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  const saveContext = React.useCallback(async () => {
+    try {
+      setSaving(true);
+      setError(null);
+      const resp = await fetch("http://localhost:8000/context", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ context: { notes } })
+      });
+      if (!resp.ok) {
+        const err = await resp.json().catch(() => ({}));
+        throw new Error(err.detail || `HTTP ${resp.status}`);
+      }
+    } catch (e: any) {
+      setError(e?.message || "Failed to save context");
+    } finally {
+      setSaving(false);
+    }
+  }, [notes]);
+
+  React.useEffect(() => { loadContext(); }, [loadContext]);
+
   return (
     <div>
       <h2 className="text-2xl font-bold mb-4">Context</h2>
-      <div className="space-y-4">
-        {Object.entries(answers).map(([key, value]) => (
-          <div key={key} className="border border-black p-4 rounded">
-            <h3 className="font-semibold capitalize">{key.replace("_", " ")}</h3>
-            <p className="text-gray-600">{value}</p>
+      {error && (
+        <div className="mb-4 p-3 bg-red-50 border-2 border-red-500 rounded-lg">
+          <p className="font-semibold text-red-800">Error: {error}</p>
+        </div>
+      )}
+      <div className="grid gap-4">
+        <div className="border border-black p-4 rounded">
+          <h3 className="font-semibold mb-2">Questionnaire</h3>
+          <div className="grid md:grid-cols-2 gap-3 text-sm">
+            {Object.entries(answers).map(([key, value]) => (
+              <div key={key}>
+                <div className="font-semibold capitalize">{key.replace("_", " ")}</div>
+                <div className="text-gray-600">{value}</div>
+              </div>
+            ))}
           </div>
-        ))}
+        </div>
+        <div className="border border-black p-4 rounded">
+          <div className="flex items-center justify-between">
+            <h3 className="font-semibold">Notes</h3>
+            <button onClick={saveContext} disabled={saving} className="px-3 py-1 text-sm bg-black text-white rounded hover:bg-gray-800 disabled:bg-gray-400">{saving ? "Saving..." : "Save"}</button>
+          </div>
+          <textarea
+            className="w-full border border-gray-300 rounded mt-2 p-2 text-sm"
+            rows={8}
+            placeholder={loading ? "Loading..." : "Add any additional context here..."}
+            value={notes}
+            onChange={(e) => setNotes(e.target.value)}
+          />
+        </div>
       </div>
     </div>
   );

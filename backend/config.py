@@ -4,18 +4,25 @@ Configuration management for Artisan Hub
 from pydantic_settings import BaseSettings
 from typing import Optional
 import os
+from backend.constants import (
+    EMBEDDING_MODEL_DEFAULT,
+    REASONING_MODEL_DEFAULT,
+    FAST_MODEL_DEFAULT,
+    VECTOR_STORE_DEFAULT_PATH,
+    LOG_LEVEL_DEFAULT
+)
 
 
 class Settings(BaseSettings):
     """Application settings"""
-    
+
     # Ollama Configuration
     ollama_base_url: str = "http://localhost:11434"
-    
+
     # Model Configuration
-    embedding_model: str = "nomic-embed-text:latest"
-    reasoning_model: str = "gemma3:4b"
-    fast_model: str = "gemma3:1b"
+    embedding_model: str = EMBEDDING_MODEL_DEFAULT
+    reasoning_model: str = REASONING_MODEL_DEFAULT
+    fast_model: str = FAST_MODEL_DEFAULT
     
     # Tavily API Configuration
     tavily_api_key: Optional[str] = None
@@ -24,10 +31,10 @@ class Settings(BaseSettings):
     serpapi_key: Optional[str] = None
     
     # ChromaDB Configuration
-    chroma_db_path: str = "./data/chroma_db"
-    
+    chroma_db_path: str = VECTOR_STORE_DEFAULT_PATH
+
     # Logging
-    log_level: str = "INFO"
+    log_level: str = LOG_LEVEL_DEFAULT
     
     # Firebase (optional)
     firebase_credentials_path: Optional[str] = None
@@ -40,34 +47,21 @@ class Settings(BaseSettings):
 # Global settings instance
 settings = Settings()
 
-# Override with environment variables if present
-if os.getenv("TAVILY_API_KEY"):
-    settings.tavily_api_key = os.getenv("TAVILY_API_KEY")
-elif os.getenv("SERPAPI_KEY"):
-    settings.serpapi_key = os.getenv("SERPAPI_KEY")
-if os.getenv("OLLAMA_BASE_URL"):
-    settings.ollama_base_url = os.getenv("OLLAMA_BASE_URL")
-if os.getenv("CHROMA_DB_PATH"):
-    settings.chroma_db_path = os.getenv("CHROMA_DB_PATH")
+# Environment variable overrides (single pass, no duplication)
+# Note: Pydantic Settings already loads from .env, but we explicitly
+# override for clarity and additional environment variables
+env_overrides = {
+    "TAVILY_API_KEY": "tavily_api_key",
+    "SERPAPI_KEY": "serpapi_key",
+    "OLLAMA_BASE_URL": "ollama_base_url",
+    "CHROMA_DB_PATH": "chroma_db_path",
+    "LOG_LEVEL": "log_level",
+    "EMBEDDING_MODEL": "embedding_model",
+    "REASONING_MODEL": "reasoning_model",
+    "FAST_MODEL": "fast_model",
+}
 
-# Set Tavily key from provided value
-if not settings.tavily_api_key:
-    settings.tavily_api_key = "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"
-
-# Override with environment variables if present
-if os.getenv("TAVILY_API_KEY"):
-    settings.tavily_api_key = os.getenv("TAVILY_API_KEY")
-if os.getenv("SERPAPI_KEY"):
-    settings.serpapi_key = os.getenv("SERPAPI_KEY")
-if os.getenv("OLLAMA_BASE_URL"):
-    settings.ollama_base_url = os.getenv("OLLAMA_BASE_URL")
-if os.getenv("CHROMA_DB_PATH"):
-    settings.chroma_db_path = os.getenv("CHROMA_DB_PATH")
-if os.getenv("LOG_LEVEL"):
-    settings.log_level = os.getenv("LOG_LEVEL")
-if os.getenv("EMBEDDING_MODEL"):
-    settings.embedding_model = os.getenv("EMBEDDING_MODEL")
-if os.getenv("REASONING_MODEL"):
-    settings.reasoning_model = os.getenv("REASONING_MODEL")
-if os.getenv("FAST_MODEL"):
-    settings.fast_model = os.getenv("FAST_MODEL")
+for env_var, setting_attr in env_overrides.items():
+    env_value = os.getenv(env_var)
+    if env_value:
+        setattr(settings, setting_attr, env_value)

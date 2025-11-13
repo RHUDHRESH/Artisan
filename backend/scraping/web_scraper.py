@@ -9,10 +9,21 @@ CRITICAL REQUIREMENTS:
 """
 from typing import Dict, List, Optional
 import aiohttp
+import asyncio
 from bs4 import BeautifulSoup
 from playwright.async_api import async_playwright
 from loguru import logger
 from backend.config import settings
+from backend.constants import (
+    TAVILY_API_TIMEOUT,
+    SCRAPING_TIMEOUT,
+    PLAYWRIGHT_TIMEOUT,
+    PLAYWRIGHT_WAIT_TIMEOUT,
+    SCRAPER_SNIPPET_LENGTH,
+    SCRAPER_PAGE_CONTENT_LIMIT,
+    SCRAPER_USER_AGENT,
+    REGION_MAPPING
+)
 from datetime import datetime
 import json
 
@@ -20,7 +31,8 @@ import json
 try:
     from backend.api.websocket import broadcast_search_results, manager
     HAS_WEBSOCKET = True
-except:
+except ImportError:
+    logger.debug("WebSocket module not available - real-time updates disabled")
     HAS_WEBSOCKET = False
 
 
@@ -97,7 +109,7 @@ class WebScraperService:
                 "include_raw_content": False
             }
             
-            async with self.session.post(url, json=payload, headers=headers, timeout=30) as response:
+            async with self.session.post(url, json=payload, headers=headers, timeout=TAVILY_API_TIMEOUT) as response:
                 if response.status != 200:
                     error_text = await response.text()
                     logger.error(f"Tavily API error: {response.status} - {error_text}")
@@ -114,7 +126,7 @@ class WebScraperService:
                     formatted_results.append({
                         "title": result.get("title", ""),
                         "url": result.get("url", ""),
-                        "snippet": result.get("content", "")[:200],  # First 200 chars
+                        "snippet": result.get("content", "")[:SCRAPER_SNIPPET_LENGTH],
                         "position": len(formatted_results) + 1
                     })
                 
@@ -126,7 +138,7 @@ class WebScraperService:
                     "provider": "tavily"
                 }
                 self.search_logs.append(log_entry)
-                
+
                 # Broadcast via WebSocket if available
                 if HAS_WEBSOCKET:
                     try:
@@ -138,14 +150,14 @@ class WebScraperService:
                             "results_count": len(formatted_results),
                             "timestamp": log_entry["timestamp"]
                         })
-                    except:
-                        pass  # WebSocket not critical
-                
+                    except (RuntimeError, AttributeError) as e:
+                        logger.debug(f"WebSocket broadcast failed (non-critical): {type(e).__name__}: {e}")
+
                 logger.success(f"Found {len(formatted_results)} results via Tavily")
                 return formatted_results
-        
-        except Exception as e:
-            logger.error(f"Tavily search error: {e}")
+
+        except (aiohttp.ClientError, asyncio.TimeoutError, ValueError) as e:
+            logger.error(f"Tavily search error: {type(e).__name__}: {e}")
             return []
     
     async def _search_serpapi(
@@ -171,7 +183,7 @@ class WebScraperService:
             self.session = aiohttp.ClientSession()
         
         try:
-            async with self.session.get(url, params=params, timeout=30) as response:
+            async with self.session.get(url, params=params, timeout=TAVILY_API_TIMEOUT) as response:
                 if response.status != 200:
                     logger.error(f"SerpAPI error: {response.status}")
                     return []
@@ -200,7 +212,7 @@ class WebScraperService:
                     "provider": "serpapi"
                 }
                 self.search_logs.append(log_entry)
-                
+
                 # Broadcast via WebSocket if available
                 if HAS_WEBSOCKET:
                     try:
@@ -212,14 +224,14 @@ class WebScraperService:
                             "results_count": len(formatted_results),
                             "timestamp": log_entry["timestamp"]
                         })
-                    except:
-                        pass  # WebSocket not critical
-                
+                    except (RuntimeError, AttributeError) as e:
+                        logger.debug(f"WebSocket broadcast failed (non-critical): {type(e).__name__}: {e}")
+
                 logger.success(f"Found {len(formatted_results)} results via SerpAPI")
                 return formatted_results
-        
-        except Exception as e:
-            logger.error(f"SerpAPI search error: {e}")
+
+        except (aiohttp.ClientError, asyncio.TimeoutError) as e:
+            logger.error(f"SerpAPI search error: {type(e).__name__}: {e}")
             return []
     
     async def scrape_page(self, url: str, use_playwright: bool = False) -> str:
@@ -242,8 +254,8 @@ class WebScraperService:
                     "status": "scraping",
                     "method": "playwright" if use_playwright else "beautifulsoup"
                 })
-            except:
-                pass
+            except (RuntimeError, AttributeError) as e:
+                logger.debug(f"WebSocket broadcast failed (non-critical): {type(e).__name__}: {e}")
         logger.info(f"Scraping: {url} (playwright={use_playwright})")
         
         try:
@@ -251,20 +263,20 @@ class WebScraperService:
                 return await self._scrape_with_playwright(url)
             else:
                 return await self._scrape_with_beautifulsoup(url)
-        except Exception as e:
-            logger.error(f"Scraping error for {url}: {e}")
+        except (aiohttp.ClientError, asyncio.TimeoutError, RuntimeError) as e:
+            logger.error(f"Scraping error for {url}: {type(e).__name__}: {e}")
             return ""
     
     async def _scrape_with_beautifulsoup(self, url: str) -> str:
         """Scrape using BeautifulSoup (fast, static content)"""
         if not self.session:
             self.session = aiohttp.ClientSession()
-        
+
         headers = {
-            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
+            "User-Agent": SCRAPER_USER_AGENT
         }
-        
-        async with self.session.get(url, headers=headers, timeout=15) as response:
+
+        async with self.session.get(url, headers=headers, timeout=SCRAPING_TIMEOUT) as response:
             if response.status != 200:
                 return ""
             
@@ -282,8 +294,8 @@ class WebScraperService:
             lines = (line.strip() for line in text.splitlines())
             chunks = (phrase.strip() for line in lines for phrase in line.split("  "))
             text = ' '.join(chunk for chunk in chunks if chunk)
-            
-            return text[:5000]  # Limit to 5000 chars
+
+            return text[:SCRAPER_PAGE_CONTENT_LIMIT]
     
     async def _scrape_with_playwright(self, url: str) -> str:
         """Scrape using Playwright (slow, handles dynamic content)"""
@@ -292,30 +304,25 @@ class WebScraperService:
             page = await browser.new_page()
             
             try:
-                await page.goto(url, wait_until="networkidle", timeout=30000)
-                
+                await page.goto(url, wait_until="networkidle", timeout=PLAYWRIGHT_TIMEOUT)
+
                 # Wait for content to load
-                await page.wait_for_timeout(2000)
-                
+                await page.wait_for_timeout(PLAYWRIGHT_WAIT_TIMEOUT)
+
                 # Get text content
                 text = await page.evaluate("() => document.body.innerText")
-                
+
                 await browser.close()
-                
-                return text[:5000]  # Limit to 5000 chars
-            except Exception as e:
+
+                return text[:SCRAPER_PAGE_CONTENT_LIMIT]
+            except (RuntimeError, asyncio.TimeoutError) as e:
+                logger.error(f"Playwright navigation error for {url}: {type(e).__name__}: {e}")
                 await browser.close()
-                raise e
+                raise RuntimeError(f"Failed to scrape {url} with Playwright") from e
     
     def _get_location_string(self, region_code: str) -> str:
         """Get location string for SerpAPI"""
-        locations = {
-            "in": "India",
-            "us": "United States",
-            "uk": "United Kingdom",
-            "au": "Australia"
-        }
-        return locations.get(region_code, "India")
+        return REGION_MAPPING.get(region_code, "India")
     
     def _get_timestamp(self) -> str:
         """Get current timestamp"""

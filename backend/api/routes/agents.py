@@ -1,8 +1,8 @@
 """
 Agent API endpoints
 """
-from fastapi import APIRouter, HTTPException
-from pydantic import BaseModel
+from fastapi import APIRouter, HTTPException, Query
+from pydantic import BaseModel, Field, field_validator
 from typing import Optional, Dict, Any, List
 from backend.core.ollama_client import OllamaClient
 from backend.core.vector_store import ArtisanVectorStore
@@ -14,43 +14,169 @@ from backend.scraping.web_scraper import WebScraperService
 from backend.services.maps_service import MapsService
 from backend.agents.supervisor import SupervisorAgent
 from backend.agents.framework.tools import default_tool_registry
+from backend.services.local_store import LocalStore
+from backend.constants import (
+    MIN_QUERY_LENGTH, MAX_QUERY_LENGTH,
+    MIN_PROFILE_NAME_LENGTH, MAX_PROFILE_NAME_LENGTH
+)
 from loguru import logger
 
 router = APIRouter(prefix="/agents", tags=["agents"])
+local_store = LocalStore()
 
 
 class ProfileAnalysisRequest(BaseModel):
-    input_text: str
-    user_id: Optional[str] = None
+    """Request model for profile analysis with validation"""
+    input_text: str = Field(
+        ...,
+        min_length=MIN_QUERY_LENGTH,
+        max_length=MAX_QUERY_LENGTH,
+        description="Profile information text from user"
+    )
+    user_id: Optional[str] = Field(
+        None,
+        min_length=MIN_PROFILE_NAME_LENGTH,
+        max_length=MAX_PROFILE_NAME_LENGTH,
+        description="Optional user identifier"
+    )
+
+    @field_validator('input_text')
+    def validate_input_text(cls, v):
+        """Ensure input_text is not empty after stripping"""
+        if not v.strip():
+            raise ValueError('input_text cannot be empty or whitespace only')
+        return v
 
 
 class SupplySearchRequest(BaseModel):
-    craft_type: str
-    supplies_needed: List[str]
-    location: Dict[str, Any]
-    user_id: Optional[str] = None
+    """Request model for supply search with validation"""
+    craft_type: str = Field(
+        ...,
+        min_length=MIN_PROFILE_NAME_LENGTH,
+        max_length=MAX_PROFILE_NAME_LENGTH,
+        description="Type of craft"
+    )
+    supplies_needed: List[str] = Field(
+        ...,
+        min_items=1,
+        max_items=20,
+        description="List of supplies needed"
+    )
+    location: Dict[str, Any] = Field(
+        ...,
+        description="Location information (must contain 'city' or 'region')"
+    )
+    user_id: Optional[str] = Field(
+        None,
+        min_length=MIN_PROFILE_NAME_LENGTH,
+        max_length=MAX_PROFILE_NAME_LENGTH
+    )
+
+    @field_validator('supplies_needed')
+    def validate_supplies(cls, v):
+        """Ensure all supplies are non-empty strings"""
+        for supply in v:
+            if not isinstance(supply, str) or not supply.strip():
+                raise ValueError('All supplies must be non-empty strings')
+        return v
+
+    @field_validator('location')
+    def validate_location(cls, v):
+        """Ensure location has required fields"""
+        if not isinstance(v, dict):
+            raise ValueError('location must be a dictionary')
+        if not any(key in v for key in ['city', 'region', 'state']):
+            raise ValueError('location must contain at least one of: city, region, state')
+        return v
 
 
 class GrowthAnalysisRequest(BaseModel):
-    craft_type: str
-    specialization: str
-    current_products: List[str]
-    location: Dict[str, Any]
-    user_id: Optional[str] = None
+    """Request model for growth analysis with validation"""
+    craft_type: str = Field(
+        ...,
+        min_length=MIN_PROFILE_NAME_LENGTH,
+        max_length=MAX_PROFILE_NAME_LENGTH
+    )
+    specialization: str = Field(
+        ...,
+        min_length=MIN_PROFILE_NAME_LENGTH,
+        max_length=MAX_PROFILE_NAME_LENGTH
+    )
+    current_products: List[str] = Field(
+        ...,
+        min_items=1,
+        max_items=20
+    )
+    location: Dict[str, Any] = Field(...)
+    user_id: Optional[str] = Field(None)
+
+    @field_validator('current_products')
+    def validate_products(cls, v):
+        """Ensure all products are non-empty strings"""
+        for product in v:
+            if not isinstance(product, str) or not product.strip():
+                raise ValueError('All products must be non-empty strings')
+        return v
 
 
 class EventSearchRequest(BaseModel):
-    craft_type: str
-    location: Dict[str, Any]
-    travel_radius_km: Optional[int] = 100
-    user_id: Optional[str] = None
+    """Request model for event search with validation"""
+    craft_type: str = Field(
+        ...,
+        min_length=MIN_PROFILE_NAME_LENGTH,
+        max_length=MAX_PROFILE_NAME_LENGTH
+    )
+    location: Dict[str, Any] = Field(...)
+    travel_radius_km: Optional[int] = Field(
+        100,
+        ge=1,
+        le=500,
+        description="Travel radius in kilometers (1-500)"
+    )
+    user_id: Optional[str] = Field(None)
 
 
 class SupervisedMissionRequest(BaseModel):
-    goal: str
-    context: Optional[Dict[str, Any]] = None
-    constraints: Optional[Dict[str, Any]] = None  # { max_steps, region_priority }
-    capabilities: Optional[List[str]] = None      # subset of [profile_analyst, supply_hunter, growth_marketer, event_scout]
+    """Request model for supervised mission with validation"""
+    goal: str = Field(
+        ...,
+        min_length=MIN_QUERY_LENGTH,
+        max_length=MAX_QUERY_LENGTH,
+        description="Mission goal"
+    )
+    context: Optional[Dict[str, Any]] = Field(None)
+    constraints: Optional[Dict[str, Any]] = Field(
+        None,
+        description="Constraints like max_steps and region_priority"
+    )
+    capabilities: Optional[List[str]] = Field(
+        None,
+        max_items=4,
+        description="Subset of available agents to use"
+    )
+
+    @field_validator('goal')
+    def validate_goal(cls, v):
+        """Ensure goal is not empty after stripping"""
+        if not v.strip():
+            raise ValueError('goal cannot be empty or whitespace only')
+        return v
+
+    @field_validator('capabilities')
+    def validate_capabilities(cls, v):
+        """Ensure capabilities are valid agent names"""
+        valid_agents = {
+            'profile_analyst', 'supply_hunter',
+            'growth_marketer', 'event_scout'
+        }
+        if v is not None:
+            for cap in v:
+                if cap not in valid_agents:
+                    raise ValueError(
+                        f"Invalid capability '{cap}'. "
+                        f"Must be one of: {', '.join(valid_agents)}"
+                    )
+        return v
 
 
 @router.post("/profile/analyze")
@@ -93,8 +219,28 @@ async def search_suppliers(request: SupplySearchRequest):
             "location": request.location,
             "user_id": request.user_id
         })
-        
-        return result
+        # Persist and normalize shape for UI
+        try:
+            user_id = request.user_id or "anonymous"
+            suppliers = result.get("suppliers", [])
+            local_store.save_suppliers(user_id, suppliers, context={
+                "craft_type": request.craft_type,
+                "location": request.location,
+                "supplies_needed": request.supplies_needed,
+            })
+            # Also mirror into materials bucket for the Materials view
+            local_store.save_materials(user_id, suppliers, context={
+                "craft_type": request.craft_type,
+                "location": request.location,
+                "supplies_needed": request.supplies_needed,
+            })
+        except Exception as persist_err:
+            logger.debug(f"Failed to persist suppliers: {persist_err}")
+
+        # Also include a generic 'results' array for the generic view
+        normalized = dict(result)
+        normalized["results"] = result.get("suppliers", [])
+        return normalized
     except Exception as e:
         logger.error(f"Supply search error: {e}")
         raise HTTPException(status_code=500, detail=str(e))
@@ -119,8 +265,29 @@ async def analyze_growth(request: GrowthAnalysisRequest):
             "location": request.location,
             "user_id": request.user_id
         })
-        
-        return result
+        # Normalize to a generic list and persist as opportunities
+        try:
+            # Build a list of highlights for UI
+            combined: list = []
+            for key in ("trends", "product_innovations", "marketing_channels"):
+                val = result.get(key)
+                if isinstance(val, list):
+                    combined.extend(val)
+            user_id = request.user_id or "anonymous"
+            local_store.save_opportunities(user_id, combined, context={
+                "craft_type": request.craft_type,
+                "specialization": request.specialization,
+                "location": request.location,
+            })
+            normalized = dict(result)
+            normalized.setdefault("opportunities", combined)
+            normalized.setdefault("results", combined)
+            return normalized
+        except Exception as persist_err:
+            logger.debug(f"Failed to persist opportunities: {persist_err}")
+            normalized = dict(result)
+            normalized.setdefault("results", [])
+            return normalized
     except Exception as e:
         logger.error(f"Growth analysis error: {e}")
         raise HTTPException(status_code=500, detail=str(e))
@@ -145,8 +312,24 @@ async def search_events(request: EventSearchRequest):
             "travel_radius_km": request.travel_radius_km or 100,
             "user_id": request.user_id
         })
-        
-        return result
+        # Persist and normalize shape for UI
+        try:
+            events = result.get("upcoming_events", [])
+            user_id = request.user_id or "anonymous"
+            local_store.save_events(user_id, events, context={
+                "craft_type": request.craft_type,
+                "location": request.location,
+                "travel_radius_km": request.travel_radius_km or 100,
+            })
+            normalized = dict(result)
+            normalized.setdefault("events", events)
+            normalized.setdefault("results", events)
+            return normalized
+        except Exception as persist_err:
+            logger.debug(f"Failed to persist events: {persist_err}")
+            normalized = dict(result)
+            normalized.setdefault("results", [])
+            return normalized
     except Exception as e:
         logger.error(f"Event search error: {e}")
         raise HTTPException(status_code=500, detail=str(e))
@@ -188,6 +371,52 @@ async def list_tools():
         logger.error(f"List tools error: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
+# ---------------------- Recent items (local store) ----------------------
+
+@router.get("/suppliers/recent")
+async def get_recent_suppliers(user_id: Optional[str] = Query(None)):
+    try:
+        items = local_store.get_suppliers(user_id or "anonymous")
+        return {"suppliers": items, "results": items}
+    except Exception as e:
+        logger.error(f"Get recent suppliers error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/opportunities/recent")
+async def get_recent_opportunities(user_id: Optional[str] = Query(None)):
+    try:
+        items = local_store.get_opportunities(user_id or "anonymous")
+        return {"opportunities": items, "results": items}
+    except Exception as e:
+        logger.error(f"Get recent opportunities error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/events/recent")
+async def get_recent_events(
+    user_id: Optional[str] = Query(None),
+    city: Optional[str] = Query(None),
+    date_from: Optional[str] = Query(None, description="YYYY-MM-DD"),
+    date_to: Optional[str] = Query(None, description="YYYY-MM-DD"),
+):
+    try:
+        items = local_store.get_events(user_id or "anonymous", city=city, date_from=date_from, date_to=date_to)
+        return {"events": items, "results": items}
+    except Exception as e:
+        logger.error(f"Get recent events error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/materials/recent")
+async def get_recent_materials(user_id: Optional[str] = Query(None)):
+    try:
+        items = local_store.get_materials(user_id or "anonymous")
+        return {"materials": items, "results": items}
+    except Exception as e:
+        logger.error(f"Get recent materials error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
 # Alternative endpoints matching next.md specification
 @router.post("/profile-analyst")
 async def profile_analyst(request: ProfileAnalysisRequest):
@@ -205,4 +434,3 @@ async def supply_hunter(request: SupplySearchRequest):
 async def growth_marketer(request: GrowthAnalysisRequest):
     """Alternative endpoint matching next.md"""
     return await analyze_growth(request)
-

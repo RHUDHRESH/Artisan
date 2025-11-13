@@ -7,6 +7,15 @@ from chromadb.config import Settings
 from loguru import logger
 from backend.core.ollama_client import OllamaClient
 from backend.config import settings
+from backend.constants import (
+    VECTOR_STORE_PERSIST_IMPL,
+    COLLECTION_CRAFT_KNOWLEDGE,
+    COLLECTION_SUPPLIER_DATA,
+    COLLECTION_MARKET_INSIGHTS,
+    COLLECTION_USER_CONTEXT,
+    COLLECTION_ARTISAN_KNOWLEDGE,
+    VECTOR_QUERY_DEFAULT_RESULTS
+)
 
 
 class ArtisanVectorStore:
@@ -31,38 +40,38 @@ class ArtisanVectorStore:
             chroma_env_vars = [k for k in os.environ.keys() if k.startswith('CHROMA_')]
             for var in chroma_env_vars:
                 del os.environ[var]
-            
+
             # Try with explicit settings to force embedded mode
             self.client = chromadb.PersistentClient(
-                path=persist_dir, 
+                path=persist_dir,
                 settings=Settings(
                     allow_reset=True,
-                    chroma_db_impl="duckdb+parquet",  # Force embedded implementation
+                    chroma_db_impl=VECTOR_STORE_PERSIST_IMPL,  # Force embedded implementation
                     anonymized_telemetry=False,
                     is_persistent=True
                 )
             )
             logger.info(f"Using ChromaDB PersistentClient with embedded mode at {persist_dir}")
-        except Exception as e:
-            logger.warning(f"Failed to create PersistentClient with Settings: {e}, trying simple approach")
+        except (chromadb.errors.ChromaError, OSError, ValueError) as e:
+            logger.warning(f"Failed to create PersistentClient with Settings: {type(e).__name__}: {e}, trying simple approach")
             try:
                 # Try simpler approach
                 self.client = chromadb.PersistentClient(path=persist_dir)
                 logger.info(f"Using ChromaDB PersistentClient at {persist_dir}")
-            except Exception as e2:
-                logger.warning(f"Failed to create PersistentClient: {e2}, trying EphemeralClient")
+            except (chromadb.errors.ChromaError, OSError) as e2:
+                logger.warning(f"Failed to create PersistentClient: {type(e2).__name__}: {e2}, trying EphemeralClient")
                 try:
                     # Last resort - ephemeral client (won't persist but works)
                     self.client = chromadb.EphemeralClient()
                     logger.warning(f"Using ChromaDB EphemeralClient (data won't persist)")
                 except Exception as e3:
-                    logger.error(f"Failed to initialize any ChromaDB client: {e3}")
-                    raise
+                    logger.error(f"Failed to initialize any ChromaDB client: {type(e3).__name__}: {e3}")
+                    raise RuntimeError("Could not initialize ChromaDB client in any mode") from e3
         
         self.ollama_client = OllamaClient()
-        self.collection_name = "artisan_knowledge"  # Main collection
+        self.collection_name = COLLECTION_ARTISAN_KNOWLEDGE  # Main collection
         self.collection = None  # Will be initialized
-        
+
         # Auto-initialize collections immediately
         self._initialize_collections()
         
@@ -73,17 +82,17 @@ class ArtisanVectorStore:
         try:
             # Create or get main collection
             self.collection = self._get_or_create_collection(self.collection_name)
-            
+
             # Initialize sub-collections
             self.collections = {
-                "craft_knowledge": self._get_or_create_collection("craft_knowledge"),
-                "supplier_data": self._get_or_create_collection("supplier_data"),
-                "market_insights": self._get_or_create_collection("market_insights"),
-                "user_context": self._get_or_create_collection("user_context")
+                COLLECTION_CRAFT_KNOWLEDGE: self._get_or_create_collection(COLLECTION_CRAFT_KNOWLEDGE),
+                COLLECTION_SUPPLIER_DATA: self._get_or_create_collection(COLLECTION_SUPPLIER_DATA),
+                COLLECTION_MARKET_INSIGHTS: self._get_or_create_collection(COLLECTION_MARKET_INSIGHTS),
+                COLLECTION_USER_CONTEXT: self._get_or_create_collection(COLLECTION_USER_CONTEXT)
             }
             logger.success("ChromaDB collections initialized successfully")
-        except Exception as e:
-            logger.error(f"Failed to initialize ChromaDB collections: {e}")
+        except (chromadb.errors.ChromaError, RuntimeError) as e:
+            logger.error(f"Failed to initialize ChromaDB collections: {type(e).__name__}: {e}")
             # Create fallback empty collections dict
             self.collections = {}
             self.collection = None
@@ -94,14 +103,15 @@ class ArtisanVectorStore:
             collection = self.client.get_collection(name)
             logger.debug(f"Retrieved existing collection: {name}")
             return collection
-        except Exception as e:
+        except chromadb.errors.ChromaError as e:
+            logger.debug(f"Collection {name} does not exist, creating it: {e}")
             try:
                 collection = self.client.create_collection(name)
                 logger.info(f"Created new collection: {name}")
                 return collection
-            except Exception as create_error:
-                logger.error(f"Failed to create collection {name}: {create_error}")
-                raise
+            except chromadb.errors.ChromaError as create_error:
+                logger.error(f"Failed to create collection {name}: {type(create_error).__name__}: {create_error}")
+                raise RuntimeError(f"Could not create collection {name}") from create_error
     
     def get_collection(self):
         """Get the main collection"""
@@ -153,7 +163,7 @@ class ArtisanVectorStore:
         self,
         collection_name: str,
         query_text: str,
-        n_results: int = 5,
+        n_results: int = VECTOR_QUERY_DEFAULT_RESULTS,
         where: Optional[Dict] = None
     ) -> List[Dict]:
         """
@@ -173,8 +183,9 @@ class ArtisanVectorStore:
             # Try to initialize it
             try:
                 self.collections[collection_name] = self._get_or_create_collection(collection_name)
-            except:
-                raise ValueError(f"Invalid collection: {collection_name}")
+            except (RuntimeError, chromadb.errors.ChromaError) as e:
+                logger.error(f"Failed to access collection {collection_name}: {type(e).__name__}: {e}")
+                raise ValueError(f"Invalid collection: {collection_name}") from e
         
         # Generate query embedding
         async with self.ollama_client as client:

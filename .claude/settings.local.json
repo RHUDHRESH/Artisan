@@ -4,7 +4,13 @@
       "WebSearch",
       "Bash(cmd /c \"start.bat internal 2>&1 | head -50\")",
       "Bash(dir:*)",
-      "Bash(nul)"
+      "Bash(nul)",
+      "Bash(tree:*)",
+      "Bash(find:*)",
+      "Bash(xargs cat:*)",
+      "Bash(del CLAUDE_CODE_INSTALL.md)",
+      "Bash(echo:*)",
+      "Bash(cat:*)"
     ],
     "deny": [],
     "ask": []
