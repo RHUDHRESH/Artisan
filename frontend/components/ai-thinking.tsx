@@ -31,7 +31,7 @@ export function AIThinking({ activities }: AIThinkingProps) {
       <div className="flex items-center gap-2 mb-2">
         <div className="w-2 h-2 bg-black rounded-full animate-pulse" />
         <TextShimmer className="text-sm font-semibold">
-          AI Agent: {currentActivity.agent}
+          {`AI Agent: ${currentActivity.agent}`}
         </TextShimmer>
       </div>
 
