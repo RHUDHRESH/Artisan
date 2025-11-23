@@ -1,0 +1,191 @@
+{
+  "dashboard": {
+    "title": "Artisan Hub - Overview",
+    "tags": ["artisan", "overview"],
+    "timezone": "browser",
+    "refresh": "30s",
+    "time": {
+      "from": "now-1h",
+      "to": "now"
+    },
+    "panels": [
+      {
+        "id": 1,
+        "title": "Request Rate",
+        "type": "graph",
+        "gridPos": {"x": 0, "y": 0, "w": 12, "h": 8},
+        "targets": [
+          {
+            "expr": "sum(rate(http_requests_total[5m]))",
+            "legendFormat": "Total Requests/sec"
+          },
+          {
+            "expr": "sum(rate(http_requests_total{status=~\"2..\"}[5m]))",
+            "legendFormat": "2xx Responses/sec"
+          },
+          {
+            "expr": "sum(rate(http_requests_total{status=~\"4..\"}[5m]))",
+            "legendFormat": "4xx Responses/sec"
+          },
+          {
+            "expr": "sum(rate(http_requests_total{status=~\"5..\"}[5m]))",
+            "legendFormat": "5xx Responses/sec"
+          }
+        ]
+      },
+      {
+        "id": 2,
+        "title": "Error Rate",
+        "type": "graph",
+        "gridPos": {"x": 12, "y": 0, "w": 12, "h": 8},
+        "targets": [
+          {
+            "expr": "(sum(rate(http_requests_total{status=~\"5..\"}[5m])) / sum(rate(http_requests_total[5m]))) * 100",
+            "legendFormat": "Error Rate %"
+          }
+        ],
+        "yaxes": [
+          {"format": "percent", "min": 0}
+        ]
+      },
+      {
+        "id": 3,
+        "title": "Response Time (p95)",
+        "type": "graph",
+        "gridPos": {"x": 0, "y": 8, "w": 12, "h": 8},
+        "targets": [
+          {
+            "expr": "histogram_quantile(0.95, sum(rate(http_request_duration_seconds_bucket[5m])) by (le, endpoint))",
+            "legendFormat": "{{ endpoint }}"
+          }
+        ],
+        "yaxes": [
+          {"format": "s"}
+        ]
+      },
+      {
+        "id": 4,
+        "title": "Active Requests",
+        "type": "graph",
+        "gridPos": {"x": 12, "y": 8, "w": 12, "h": 8},
+        "targets": [
+          {
+            "expr": "active_requests",
+            "legendFormat": "Active Requests"
+          }
+        ]
+      },
+      {
+        "id": 5,
+        "title": "Agent Executions",
+        "type": "graph",
+        "gridPos": {"x": 0, "y": 16, "w": 12, "h": 8},
+        "targets": [
+          {
+            "expr": "sum(rate(agent_executions_total[5m])) by (agent_type)",
+            "legendFormat": "{{ agent_type }}"
+          }
+        ]
+      },
+      {
+        "id": 6,
+        "title": "Agent Error Rate",
+        "type": "graph",
+        "gridPos": {"x": 12, "y": 16, "w": 12, "h": 8},
+        "targets": [
+          {
+            "expr": "(sum(rate(agent_executions_total{status=\"error\"}[5m])) / sum(rate(agent_executions_total[5m]))) * 100",
+            "legendFormat": "Error Rate %"
+          }
+        ],
+        "yaxes": [
+          {"format": "percent", "min": 0}
+        ]
+      },
+      {
+        "id": 7,
+        "title": "LLM Requests by Provider",
+        "type": "graph",
+        "gridPos": {"x": 0, "y": 24, "w": 12, "h": 8},
+        "targets": [
+          {
+            "expr": "sum(rate(llm_requests_total[5m])) by (provider)",
+            "legendFormat": "{{ provider }}"
+          }
+        ]
+      },
+      {
+        "id": 8,
+        "title": "LLM Latency (p95)",
+        "type": "graph",
+        "gridPos": {"x": 12, "y": 24, "w": 12, "h": 8},
+        "targets": [
+          {
+            "expr": "histogram_quantile(0.95, sum(rate(llm_request_duration_seconds_bucket[5m])) by (le, provider))",
+            "legendFormat": "{{ provider }}"
+          }
+        ],
+        "yaxes": [
+          {"format": "s"}
+        ]
+      },
+      {
+        "id": 9,
+        "title": "Token Usage",
+        "type": "graph",
+        "gridPos": {"x": 0, "y": 32, "w": 12, "h": 8},
+        "targets": [
+          {
+            "expr": "sum(rate(llm_tokens_used_total[5m])) by (provider, type)",
+            "legendFormat": "{{ provider }} - {{ type }}"
+          }
+        ]
+      },
+      {
+        "id": 10,
+        "title": "Cache Hit Rate",
+        "type": "graph",
+        "gridPos": {"x": 12, "y": 32, "w": 12, "h": 8},
+        "targets": [
+          {
+            "expr": "(sum(rate(cache_hits_total[5m])) by (cache_type) / (sum(rate(cache_hits_total[5m])) by (cache_type) + sum(rate(cache_misses_total[5m])) by (cache_type))) * 100",
+            "legendFormat": "{{ cache_type }}"
+          }
+        ],
+        "yaxes": [
+          {"format": "percent", "min": 0, "max": 100}
+        ]
+      },
+      {
+        "id": 11,
+        "title": "Memory Usage",
+        "type": "graph",
+        "gridPos": {"x": 0, "y": 40, "w": 12, "h": 8},
+        "targets": [
+          {
+            "expr": "memory_usage_bytes / (1024 * 1024 * 1024)",
+            "legendFormat": "Memory Usage (GB)"
+          }
+        ],
+        "yaxes": [
+          {"format": "decgbytes"}
+        ]
+      },
+      {
+        "id": 12,
+        "title": "Database Query Duration (p95)",
+        "type": "graph",
+        "gridPos": {"x": 12, "y": 40, "w": 12, "h": 8},
+        "targets": [
+          {
+            "expr": "histogram_quantile(0.95, sum(rate(db_query_duration_seconds_bucket[5m])) by (le, operation, table))",
+            "legendFormat": "{{ operation }} - {{ table }}"
+          }
+        ],
+        "yaxes": [
+          {"format": "s"}
+        ]
+      }
+    ]
+  }
+}

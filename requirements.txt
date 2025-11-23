@@ -49,8 +49,21 @@ rich>=13.0.0  # Beautiful terminal output
 tiktoken>=0.5.0  # Token counting
 jsonschema>=4.20.0  # Schema validation
 
+# Monitoring & Observability
+prometheus-client>=0.19.0  # Prometheus metrics
+structlog>=24.1.0  # Structured logging
+psutil>=5.9.0  # System metrics
+opentelemetry-api>=1.22.0  # Distributed tracing
+opentelemetry-sdk>=1.22.0
+opentelemetry-instrumentation-fastapi>=0.43b0
+
 # Testing
 pytest>=7.4.0
 pytest-asyncio>=0.21.0
-httpx>=0.25.0
+pytest-cov>=4.1.0  # Coverage reporting
+pytest-xdist>=3.5.0  # Parallel test execution
 pytest-timeout>=2.2.0
+httpx>=0.25.0
+faker>=22.0.0  # Test data generation
+freezegun>=1.4.0  # Time mocking
+aiosqlite>=0.19.0  # SQLite async support for tests
