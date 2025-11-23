@@ -339,7 +339,7 @@ async def flight_check():
 
 
 # Include routers
-from backend.api.routes import chat, agents, maps, search, context, settings
+from backend.api.routes import chat, agents, maps, search, context, settings, orchestration
 from fastapi import WebSocket
 
 app.include_router(chat.router)
@@ -348,6 +348,7 @@ app.include_router(maps.router)
 app.include_router(search.router)
 app.include_router(context.router)
 app.include_router(settings.router)
+app.include_router(orchestration.router)
 
 @app.websocket("/ws")
 async def websocket_route(websocket: WebSocket):

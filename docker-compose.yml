@@ -37,12 +37,16 @@ services:
       - BACKEND_URL=${BACKEND_URL:-http://localhost:8000}
       - CORS_ORIGINS=${CORS_ORIGINS:-*}
       - LOG_LEVEL=${LOG_LEVEL:-INFO}
+
+      # Redis Configuration
+      - REDIS_URL=${REDIS_URL:-redis://redis:6379}
     volumes:
       - backend-data:/app/data
       - ./backend:/app/backend:ro  # Mount source code in dev mode
     networks:
       - artisan-network
     depends_on:
+      - redis
       - ollama
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
@@ -77,6 +81,25 @@ services:
       timeout: 10s
       retries: 3
       start_period: 30s
+
+  # Redis (Agent memory and state management)
+  redis:
+    image: redis:7-alpine
+    container_name: artisan-redis
+    restart: unless-stopped
+    ports:
+      - "${REDIS_PORT:-6379}:6379"
+    volumes:
+      - redis-data:/data
+    networks:
+      - artisan-network
+    command: redis-server --appendonly yes
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
 
   # Ollama (Optional - Local LLM inference)
   ollama:
@@ -134,6 +157,8 @@ services:
 
 volumes:
   backend-data:
+    driver: local
+  redis-data:
     driver: local
   ollama-data:
     driver: local
