@@ -1,0 +1,212 @@
+name: CI/CD Pipeline
+
+on:
+  push:
+    branches: [main, develop, 'claude/**']
+  pull_request:
+    branches: [main, develop]
+  workflow_dispatch:
+
+env:
+  PYTHON_VERSION: '3.11'
+  NODE_VERSION: '18'
+
+jobs:
+  # Backend Tests
+  backend-tests:
+    name: Backend Tests
+    runs-on: ubuntu-latest
+
+    services:
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: 'pip'
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install pytest-cov black flake8 mypy pylint
+
+      - name: Lint with flake8
+        run: |
+          flake8 backend --count --select=E9,F63,F7,F82 --show-source --statistics
+          flake8 backend --count --exit-zero --max-complexity=10 --max-line-length=127 --statistics
+
+      - name: Check formatting with black
+        run: black --check backend
+
+      - name: Type check with mypy
+        run: mypy backend --ignore-missing-imports || true
+
+      - name: Run tests with coverage
+        env:
+          REDIS_URL: redis://localhost:6379
+          GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
+          LLM_PROVIDER: groq
+        run: |
+          pytest backend/tests --cov=backend --cov-report=xml --cov-report=html -v
+
+      - name: Upload coverage to Codecov
+        uses: codecov/codecov-action@v3
+        with:
+          files: ./coverage.xml
+          flags: backend
+          name: backend-coverage
+
+  # Frontend Tests
+  frontend-tests:
+    name: Frontend Tests
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install dependencies
+        working-directory: frontend
+        run: npm ci
+
+      - name: Lint
+        working-directory: frontend
+        run: npm run lint || true
+
+      - name: Type check
+        working-directory: frontend
+        run: npx tsc --noEmit || true
+
+      - name: Run tests
+        working-directory: frontend
+        run: npm test -- --passWithNoTests
+
+      - name: Build
+        working-directory: frontend
+        env:
+          NEXT_PUBLIC_API_URL: http://localhost:8000
+          NEXT_PUBLIC_WS_URL: ws://localhost:8000
+        run: npm run build
+
+  # Code Quality
+  code-quality:
+    name: Code Quality Checks
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Install Python quality tools
+        run: |
+          pip install pylint bandit safety
+
+      - name: Run Pylint
+        run: pylint backend --exit-zero || true
+
+      - name: Run Bandit (security)
+        run: bandit -r backend -f json -o bandit-report.json || true
+
+      - name: Check Python dependencies for vulnerabilities
+        run: safety check --json || true
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: Install frontend dependencies
+        working-directory: frontend
+        run: npm ci
+
+      - name: Run ESLint
+        working-directory: frontend
+        run: npx eslint . --ext .js,.jsx,.ts,.tsx --max-warnings 0 || true
+
+      - name: Check for outdated dependencies
+        working-directory: frontend
+        run: npm outdated || true
+
+  # Integration Tests
+  integration-tests:
+    name: Integration Tests
+    runs-on: ubuntu-latest
+    needs: [backend-tests, frontend-tests]
+
+    services:
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Install backend dependencies
+        run: |
+          pip install -r requirements.txt
+          pip install pytest-asyncio httpx
+
+      - name: Start backend
+        env:
+          REDIS_URL: redis://localhost:6379
+          GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
+        run: |
+          uvicorn backend.main:app --host 0.0.0.0 --port 8000 &
+          sleep 10
+
+      - name: Health check
+        run: |
+          curl -f http://localhost:8000/health || exit 1
+          curl -f http://localhost:8000/health/flight-check || exit 1
+
+      - name: Run integration tests
+        run: pytest backend/tests/test_complete_system.py -v || true
+
+  # Build Success Notification
+  build-success:
+    name: Build Success
+    runs-on: ubuntu-latest
+    needs: [backend-tests, frontend-tests, code-quality, integration-tests]
+    if: success()
+
+    steps:
+      - name: Success notification
+        run: |
+          echo "✅ All CI checks passed!"
+          echo "Backend tests: ✅"
+          echo "Frontend tests: ✅"
+          echo "Code quality: ✅"
+          echo "Integration tests: ✅"

@@ -1,0 +1,225 @@
+name: Docker Build & Publish
+
+on:
+  push:
+    branches: [main, develop]
+    tags:
+      - 'v*'
+  pull_request:
+    branches: [main, develop]
+  schedule:
+    # Rebuild weekly to get security updates
+    - cron: '0 0 * * 0'
+  workflow_dispatch:
+
+env:
+  REGISTRY_GCR: gcr.io
+  REGISTRY_DOCKERHUB: docker.io
+  IMAGE_NAME_BACKEND: artisan-backend
+  IMAGE_NAME_FRONTEND: artisan-frontend
+
+jobs:
+  # Build and test backend image
+  build-backend:
+    name: Build Backend Image
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to Google Container Registry
+        if: github.event_name != 'pull_request'
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY_GCR }}
+          username: _json_key
+          password: ${{ secrets.GCP_SA_KEY }}
+
+      - name: Log in to Docker Hub
+        if: github.event_name != 'pull_request'
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY_DOCKERHUB }}
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: Extract metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: |
+            ${{ env.REGISTRY_GCR }}/${{ secrets.GCP_PROJECT_ID }}/${{ env.IMAGE_NAME_BACKEND }}
+            ${{ env.REGISTRY_DOCKERHUB }}/artisanhub/${{ env.IMAGE_NAME_BACKEND }}
+          tags: |
+            type=ref,event=branch
+            type=ref,event=pr
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
+            type=semver,pattern={{major}}
+            type=sha,prefix={{branch}}-
+            type=raw,value=latest,enable={{is_default_branch}}
+
+      - name: Build and push
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: ./backend/Dockerfile
+          platforms: linux/amd64,linux/arm64
+          push: ${{ github.event_name != 'pull_request' }}
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+          build-args: |
+            BUILD_DATE=${{ github.event.repository.updated_at }}
+            VCS_REF=${{ github.sha }}
+            VERSION=${{ steps.meta.outputs.version }}
+
+      - name: Test image
+        run: |
+          docker run --rm \
+            -e REDIS_URL=redis://localhost:6379 \
+            -e LLM_PROVIDER=groq \
+            ${{ env.REGISTRY_GCR }}/${{ secrets.GCP_PROJECT_ID }}/${{ env.IMAGE_NAME_BACKEND }}:${{ github.sha }} \
+            python -c "import backend; print('✅ Backend image works!')"
+
+      - name: Scan image for vulnerabilities
+        uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: ${{ env.REGISTRY_GCR }}/${{ secrets.GCP_PROJECT_ID }}/${{ env.IMAGE_NAME_BACKEND }}:${{ github.sha }}
+          format: 'sarif'
+          output: 'trivy-backend-results.sarif'
+
+      - name: Upload Trivy results to GitHub Security
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: 'trivy-backend-results.sarif'
+
+  # Build and test frontend image
+  build-frontend:
+    name: Build Frontend Image
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to Google Container Registry
+        if: github.event_name != 'pull_request'
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY_GCR }}
+          username: _json_key
+          password: ${{ secrets.GCP_SA_KEY }}
+
+      - name: Log in to Docker Hub
+        if: github.event_name != 'pull_request'
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY_DOCKERHUB }}
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: Extract metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: |
+            ${{ env.REGISTRY_GCR }}/${{ secrets.GCP_PROJECT_ID }}/${{ env.IMAGE_NAME_FRONTEND }}
+            ${{ env.REGISTRY_DOCKERHUB }}/artisanhub/${{ env.IMAGE_NAME_FRONTEND }}
+          tags: |
+            type=ref,event=branch
+            type=ref,event=pr
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
+            type=semver,pattern={{major}}
+            type=sha,prefix={{branch}}-
+            type=raw,value=latest,enable={{is_default_branch}}
+
+      - name: Build and push
+        uses: docker/build-push-action@v5
+        with:
+          context: ./frontend
+          file: ./frontend/Dockerfile
+          platforms: linux/amd64,linux/arm64
+          push: ${{ github.event_name != 'pull_request' }}
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+          build-args: |
+            NEXT_PUBLIC_API_URL=${{ secrets.BACKEND_URL }}
+            NEXT_PUBLIC_WS_URL=${{ secrets.BACKEND_WS_URL }}
+
+      - name: Scan image for vulnerabilities
+        uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: ${{ env.REGISTRY_GCR }}/${{ secrets.GCP_PROJECT_ID }}/${{ env.IMAGE_NAME_FRONTEND }}:${{ github.sha }}
+          format: 'sarif'
+          output: 'trivy-frontend-results.sarif'
+
+      - name: Upload Trivy results to GitHub Security
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: 'trivy-frontend-results.sarif'
+
+  # Test docker-compose setup
+  test-docker-compose:
+    name: Test Docker Compose
+    runs-on: ubuntu-latest
+    needs: [build-backend, build-frontend]
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Create .env file
+        run: |
+          cat > .env <<EOF
+          LLM_PROVIDER=groq
+          GROQ_API_KEY=test-key
+          REDIS_URL=redis://redis:6379
+          NEXT_PUBLIC_API_URL=http://localhost:8000
+          NEXT_PUBLIC_WS_URL=ws://localhost:8000
+          EOF
+
+      - name: Start services
+        run: |
+          docker-compose up -d
+          sleep 30
+
+      - name: Check service health
+        run: |
+          docker-compose ps
+          curl -f http://localhost:8000/health || exit 1
+          curl -f http://localhost:3000 || exit 1
+
+      - name: Check logs
+        if: failure()
+        run: docker-compose logs
+
+      - name: Cleanup
+        if: always()
+        run: docker-compose down -v
+
+  # Publish notification
+  publish-success:
+    name: Publish Success
+    runs-on: ubuntu-latest
+    needs: [build-backend, build-frontend, test-docker-compose]
+    if: success() && github.event_name != 'pull_request'
+
+    steps:
+      - name: Success notification
+        run: |
+          echo "🐳 Docker images published successfully!"
+          echo "Backend: ✅ gcr.io/${{ secrets.GCP_PROJECT_ID }}/${{ env.IMAGE_NAME_BACKEND }}"
+          echo "Frontend: ✅ gcr.io/${{ secrets.GCP_PROJECT_ID }}/${{ env.IMAGE_NAME_FRONTEND }}"
+          echo "Docker Hub: ✅ artisanhub/artisan-backend, artisanhub/artisan-frontend"
