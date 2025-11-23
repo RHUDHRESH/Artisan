@@ -2,7 +2,7 @@
 Abstract base class for all agents
 """
 from abc import ABC, abstractmethod
-from typing import Dict, List
+from typing import Dict, List, Union
 from backend.core.ollama_client import OllamaClient
 from backend.core.vector_store import ArtisanVectorStore
 from loguru import logger
@@ -14,22 +14,23 @@ class BaseAgent(ABC):
     Abstract base class for all agents
     All agents must implement: analyze() method
     """
-    
+
     def __init__(
         self,
         name: str,
         description: str,
-        ollama_client: OllamaClient,
+        llm_client: Union[OllamaClient, any],  # Can be OllamaClient or LLMManager
         vector_store: ArtisanVectorStore
     ):
         self.name = name
         self.description = description
-        self.ollama = ollama_client
+        self.llm = llm_client  # Use generic name 'llm' instead of 'ollama'
+        self.ollama = llm_client  # Keep backward compatibility
         self.vector_store = vector_store
         self.execution_logs: List[Dict] = []
         # Shared tool registry for the whole agent team
         self.tools = global_tool_registry()
-        
+
         logger.info(f"Initialized {self.name} agent")
     
     @abstractmethod
@@ -89,30 +90,83 @@ class BaseAgent(ABC):
             logger.debug(f"Could not broadcast progress: {e}")
     
     def _format_progress_message(self, step: str, data: Dict) -> str:
-        """Format a human-readable progress message"""
+        """
+        Format a human-readable progress message with detailed thinking
+        Similar to ChatGPT/Gemini's thinking display
+        """
         if step == "start":
             supplies = data.get("supplies_needed", [])
             if supplies:
-                return f"Starting search for: {', '.join(supplies[:3])}{'...' if len(supplies) > 3 else ''}"
-            return "Starting analysis..."
+                supply_list = ', '.join(supplies[:3])
+                if len(supplies) > 3:
+                    supply_list += f" and {len(supplies) - 3} more"
+                return f"💭 Starting intelligent search for: {supply_list}. I'll search India first, then expand if needed..."
+            return "💭 Analyzing your requirements and planning my search strategy..."
+
+        elif step == "thinking":
+            return f"💭 {data.get('message', 'Thinking...')}"
+
         elif step == "searching_supply":
-            return f"🔍 Searching for suppliers of: {data.get('supply', 'supplies')}"
+            supply = data.get('supply', 'supplies')
+            return f"🔍 Now searching for: **{supply}**. Let me find the best suppliers for you..."
+
         elif step == "web_search":
-            return f"🌐 Web search: {data.get('query', 'searching')}"
+            query = data.get('query', 'searching')
+            region = data.get('region', 'India')
+            return f"🌐 Searching: \"{query}\" in {region}. Analyzing search results..."
+
+        elif step == "search_results":
+            count = data.get('results_count', 0)
+            return f"📊 Found {count} potential suppliers. Now analyzing each one in detail..."
+
         elif step == "scraping_page":
-            return f"📄 Scraping page: {data.get('url', 'unknown')}"
+            url = data.get('url', 'unknown')
+            domain = url.split('/')[2] if '/' in url else url
+            return f"📄 Extracting detailed information from {domain}..."
+
+        elif step == "extracting_data":
+            return f"🤖 Using AI to extract structured supplier information from webpage..."
+
         elif step == "verifying_supplier":
-            return f"✓ Verifying supplier: {data.get('name', 'unknown')}"
+            name = data.get('name', 'supplier')
+            return f"✓ Verifying **{name}**. Checking legitimacy, reviews, and contact information..."
+
         elif step == "expanding_search":
-            return f"🔎 Expanding search (insufficient results found)"
+            reason = data.get('reason', 'insufficient results')
+            return f"🔎 Expanding search to broader regions - {reason}. I want to find you the best options..."
+
         elif step == "verification_complete":
             conf = data.get('confidence', 0)
-            return f"✓ Verification complete (confidence: {conf:.0%})"
+            name = data.get('name', 'Supplier')
+            if conf > 0.8:
+                status = "High confidence ✅"
+            elif conf > 0.6:
+                status = "Good confidence ✓"
+            else:
+                status = "Low confidence ⚠️"
+            return f"✓ {name}: {status} ({conf:.0%})"
+
+        elif step == "cross_referencing":
+            return f"🔄 Cross-referencing suppliers to remove duplicates and verify consistency..."
+
+        elif step == "analyzing_pricing":
+            return f"💰 Analyzing pricing information and budget compatibility..."
+
         elif step == "complete":
             total = data.get('total_found', 0)
-            return f"✅ Complete! Found {total} suppliers"
+            india = data.get('india_suppliers', 0)
+            if total > 0:
+                return f"✅ Search complete! Found {total} verified suppliers ({india} in India). Results ready!"
+            else:
+                return f"⚠️ Search complete but no suppliers found. Consider broadening your search criteria."
+
+        elif step == "error":
+            error = data.get('error', 'Unknown error')
+            return f"❌ Error: {error}. Trying alternative approach..."
+
         else:
-            return f"{step}: {str(data)[:100]}"
+            # Generic fallback with emoji
+            return f"⚙️ {step.replace('_', ' ').title()}: {str(data)[:100]}"
     
     def _get_timestamp(self) -> str:
         """Get current timestamp"""

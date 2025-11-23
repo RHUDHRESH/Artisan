@@ -4,6 +4,7 @@ import React, { useState, useEffect, useRef } from "react";
 import { Questionnaire } from "@/components/questionnaire";
 import { ProductionGate } from "@/components/production-gate";
 import { AIThinking } from "@/components/ai-thinking";
+import { buildApiUrl, buildWsUrl } from "@/lib/config";
 
 export default function Home() {
   const [showQuestionnaire, setShowQuestionnaire] = useState(true);
@@ -21,21 +22,21 @@ export default function Home() {
     localStorage.setItem("questionnaireAnswers", JSON.stringify(answers));
     
     // Send answers to backend
-    fetch("http://localhost:8000/agents/profile-analyst", {
+    fetch(buildApiUrl("/agents/profile-analyst"), {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         input_text: Object.values(answers).join(" ")
       })
     }).catch(console.error);
-    
+
     // Connect to WebSocket for real-time updates
     connectWebSocket();
   };
 
   const connectWebSocket = () => {
     try {
-      const ws = new WebSocket("ws://localhost:8000/ws");
+      const ws = new WebSocket(buildWsUrl("/ws"));
       
       ws.onopen = () => {
         console.log("WebSocket connected");
