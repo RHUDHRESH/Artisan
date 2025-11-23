@@ -13,6 +13,7 @@ import {
   User
 } from "lucide-react";
 import { ExpandableTabs } from "@/components/ui/expandable-tabs";
+import { buildApiUrl, buildWsUrl, config } from "@/lib/config";
 
 interface ProductionGateProps {
   initialAnswers: Record<string, string>;
@@ -27,7 +28,7 @@ export function ProductionGate({ initialAnswers }: ProductionGateProps) {
   React.useEffect(() => {
     const runFlightCheck = async () => {
       try {
-        const response = await fetch("http://localhost:8000/health/flight-check");
+        const response = await fetch(buildApiUrl("/health/flight-check"));
         if (!response.ok) {
           const errorData = await response.json().catch(() => null);
           setFlightCheckStatus({
@@ -305,7 +306,7 @@ function SupervisorView({ answers }: { answers?: Record<string, string> }) {
   const wsRef = React.useRef<WebSocket | null>(null);
 
   React.useEffect(() => {
-    const ws = new WebSocket("ws://localhost:8000/ws");
+    const ws = new WebSocket(buildWsUrl("/ws"));
     ws.onopen = () => ws.send(JSON.stringify({ type: "subscribe" }));
     ws.onmessage = (event) => {
       const data = JSON.parse(event.data);
@@ -339,7 +340,7 @@ function SupervisorView({ answers }: { answers?: Record<string, string> }) {
         constraints: { max_steps: maxSteps, step_timeout_s: 90, retries: 1, region_priority: "in-first" },
         capabilities
       };
-      const resp = await fetch("http://localhost:8000/agents/supervise/run", {
+      const resp = await fetch(buildApiUrl("/agents/supervise/run"), {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(body)
@@ -462,7 +463,7 @@ function ToolsView() {
     setLoading(true);
     setError(null);
     try {
-      const resp = await fetch("http://localhost:8000/agents/tools");
+      const resp = await fetch(buildApiUrl("/agents/tools"));
       if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
       const data = await resp.json();
       setTools(data.tools || []);
@@ -536,7 +537,7 @@ function SuppliersView({ answers: propAnswers }: { answers?: Record<string, stri
 
   const connectWebSocket = React.useCallback(() => {
     try {
-      const ws = new WebSocket("ws://localhost:8000/ws");
+      const ws = new WebSocket(buildWsUrl("/ws"));
       ws.onopen = () => {
         ws.send(JSON.stringify({ type: "subscribe" }));
       };
@@ -567,7 +568,7 @@ function SuppliersView({ answers: propAnswers }: { answers?: Record<string, stri
   const loadRecentSuppliers = React.useCallback(async () => {
     try {
       setLoadingRecent(true);
-      const resp = await fetch("http://localhost:8000/agents/suppliers/recent");
+      const resp = await fetch(buildApiUrl("/agents/suppliers/recent"));
       if (resp.ok) {
         const data = await resp.json();
         setRecentSuppliers(Array.isArray(data.results) ? data.results : (data.suppliers || []));
@@ -603,7 +604,7 @@ function SuppliersView({ answers: propAnswers }: { answers?: Record<string, stri
         throw new Error("No supplies specified. Please fill out the questionnaire first.");
       }
 
-      const response = await fetch("http://localhost:8000/agents/supply/search", {
+      const response = await fetch(buildApiUrl("/agents/supply/search"), {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -810,7 +811,7 @@ function AgentView({
 
   const connectWebSocket = React.useCallback(() => {
     try {
-      const ws = new WebSocket("ws://localhost:8000/ws");
+      const ws = new WebSocket(buildWsUrl("/ws"));
       ws.onopen = () => {
         ws.send(JSON.stringify({ type: "subscribe" }));
       };
@@ -840,9 +841,9 @@ function AgentView({
     try {
       setLoadingRecent(true);
       let url: string | null = null;
-      if (endpoint === "growth/analyze") url = "http://localhost:8000/agents/opportunities/recent";
-      else if (endpoint === "events/search") url = "http://localhost:8000/agents/events/recent";
-      else if (endpoint === "supply/search") url = "http://localhost:8000/agents/materials/recent";
+      if (endpoint === "growth/analyze") url = buildApiUrl("/agents/opportunities/recent");
+      else if (endpoint === "events/search") url = buildApiUrl("/agents/events/recent");
+      else if (endpoint === "supply/search") url = buildApiUrl("/agents/materials/recent");
       if (!url) return;
       const resp = await fetch(url);
       if (resp.ok) {
@@ -876,7 +877,7 @@ function AgentView({
       const userAnswers = answers || JSON.parse(localStorage.getItem("questionnaireAnswers") || "{}");
       const requestBody = requestBuilder(userAnswers);
 
-      const response = await fetch(`http://localhost:8000/agents/${endpoint}`, {
+      const response = await fetch(buildApiUrl(`/agents/${endpoint}`), {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(requestBody)
@@ -1070,7 +1071,7 @@ function EventsView({ answers }: { answers?: Record<string, string> }) {
       if (city) params.set("city", city);
       if (dateFrom) params.set("date_from", dateFrom);
       if (dateTo) params.set("date_to", dateTo);
-      const url = `http://localhost:8000/agents/events/recent${params.toString() ? `?${params.toString()}` : ""}`;
+      const url = buildApiUrl(`/agents/events/recent${params.toString() ? `?${params.toString()}` : ""}`);
       const resp = await fetch(url);
       if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
       const data = await resp.json();
@@ -1156,7 +1157,7 @@ function ContextView({ answers }: { answers: Record<string, string> }) {
   const loadContext = React.useCallback(async () => {
     try {
       setLoading(true);
-      const resp = await fetch("http://localhost:8000/context");
+      const resp = await fetch(buildApiUrl("/context"));
       if (resp.ok) {
         const data = await resp.json();
         const s = (data?.context?.notes as string) || "";
@@ -1173,7 +1174,7 @@ function ContextView({ answers }: { answers: Record<string, string> }) {
     try {
       setSaving(true);
       setError(null);
-      const resp = await fetch("http://localhost:8000/context", {
+      const resp = await fetch(buildApiUrl("/context"), {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ context: { notes } })
@@ -1241,7 +1242,7 @@ function SettingsView() {
   const runFlightCheck = async () => {
     setLoading(true);
     try {
-      const response = await fetch("http://localhost:8000/health/flight-check");
+      const response = await fetch(buildApiUrl("/health/flight-check"));
       if (!response.ok) {
         // Try to parse error response, but still show structure
         const errorData = await response.json().catch(() => null);
@@ -1270,7 +1271,7 @@ function SettingsView() {
           ollama: {
             status: "unknown",
             message: "Connection failed - backend may not be running",
-            details: { error: "Network error", url: "http://localhost:8000/health/flight-check" }
+            details: { error: "Network error", url: buildApiUrl("/health/flight-check") }
           },
           ollama_generation: {
             status: "unknown",
@@ -1296,7 +1297,7 @@ function SettingsView() {
         errors: [{
           component: "flight_check",
           status: "error",
-          message: error?.message || "Failed to connect to backend. Is the server running on http://localhost:8000?",
+          message: error?.message || `Failed to connect to backend. Is the server running on ${config.apiUrl}?`,
           details: { 
             error: String(error),
             suggestion: "Make sure the backend server is running: python -m uvicorn backend.main:app --reload"

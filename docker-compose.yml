@@ -1,0 +1,145 @@
+# Docker Compose for Artisan Hub
+# Complete stack with backend, frontend, and optional services
+
+version: '3.8'
+
+services:
+  # Backend API Service
+  backend:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+    container_name: artisan-backend
+    restart: unless-stopped
+    ports:
+      - "${BACKEND_PORT:-8000}:8000"
+    environment:
+      # LLM Provider Configuration
+      - LLM_PROVIDER=${LLM_PROVIDER:-groq}
+      - GROQ_API_KEY=${GROQ_API_KEY}
+      - OLLAMA_BASE_URL=${OLLAMA_BASE_URL:-http://ollama:11434}
+
+      # Model Configuration
+      - EMBEDDING_MODEL=${EMBEDDING_MODEL:-nomic-embed-text:latest}
+      - REASONING_MODEL=${REASONING_MODEL:-gemma3:4b}
+      - FAST_MODEL=${FAST_MODEL:-gemma3:1b}
+
+      # Search APIs
+      - TAVILY_API_KEY=${TAVILY_API_KEY}
+      - SERPAPI_KEY=${SERPAPI_KEY}
+
+      # Database
+      - CHROMA_DB_PATH=/app/data/chroma_db
+      - SUPABASE_URL=${SUPABASE_URL}
+      - SUPABASE_KEY=${SUPABASE_KEY}
+
+      # Server Configuration
+      - BACKEND_URL=${BACKEND_URL:-http://localhost:8000}
+      - CORS_ORIGINS=${CORS_ORIGINS:-*}
+      - LOG_LEVEL=${LOG_LEVEL:-INFO}
+    volumes:
+      - backend-data:/app/data
+      - ./backend:/app/backend:ro  # Mount source code in dev mode
+    networks:
+      - artisan-network
+    depends_on:
+      - ollama
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  # Frontend Service
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+      args:
+        - NEXT_PUBLIC_API_URL=${NEXT_PUBLIC_API_URL:-http://localhost:8000}
+        - NEXT_PUBLIC_WS_URL=${NEXT_PUBLIC_WS_URL:-ws://localhost:8000}
+    container_name: artisan-frontend
+    restart: unless-stopped
+    ports:
+      - "${FRONTEND_PORT:-3000}:3000"
+    environment:
+      - NODE_ENV=production
+      - NEXT_PUBLIC_API_URL=${NEXT_PUBLIC_API_URL:-http://localhost:8000}
+      - NEXT_PUBLIC_WS_URL=${NEXT_PUBLIC_WS_URL:-ws://localhost:8000}
+    networks:
+      - artisan-network
+    depends_on:
+      - backend
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:3000"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+
+  # Ollama (Optional - Local LLM inference)
+  ollama:
+    image: ollama/ollama:latest
+    container_name: artisan-ollama
+    restart: unless-stopped
+    ports:
+      - "${OLLAMA_PORT:-11434}:11434"
+    volumes:
+      - ollama-data:/root/.ollama
+    networks:
+      - artisan-network
+    environment:
+      - OLLAMA_HOST=0.0.0.0:11434
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:11434/api/tags"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+
+  # Supabase (Optional - Cloud database alternative)
+  # Uncomment if you want to run Supabase locally
+  # supabase:
+  #   image: supabase/postgres:latest
+  #   container_name: artisan-supabase
+  #   restart: unless-stopped
+  #   ports:
+  #     - "5432:5432"
+  #   environment:
+  #     - POSTGRES_PASSWORD=${SUPABASE_PASSWORD:-postgres}
+  #     - POSTGRES_DB=${SUPABASE_DB:-artisan}
+  #   volumes:
+  #     - supabase-data:/var/lib/postgresql/data
+  #   networks:
+  #     - artisan-network
+
+  # Nginx Reverse Proxy (Optional - for production)
+  # Uncomment for production deployment with single entry point
+  # nginx:
+  #   image: nginx:alpine
+  #   container_name: artisan-nginx
+  #   restart: unless-stopped
+  #   ports:
+  #     - "80:80"
+  #     - "443:443"
+  #   volumes:
+  #     - ./nginx.conf:/etc/nginx/nginx.conf:ro
+  #     - ./ssl:/etc/nginx/ssl:ro
+  #   networks:
+  #     - artisan-network
+  #   depends_on:
+  #     - frontend
+  #     - backend
+
+volumes:
+  backend-data:
+    driver: local
+  ollama-data:
+    driver: local
+  # supabase-data:
+  #   driver: local
+
+networks:
+  artisan-network:
+    driver: bridge

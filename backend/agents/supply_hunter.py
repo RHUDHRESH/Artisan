@@ -92,13 +92,19 @@ class SupplyHunterAgent(BaseAgent):
             
             # Step 3: Verify each supplier
             verified_suppliers = []
+            total_to_verify = min(5, len(india_results["suppliers"]))
+            self.log_execution("thinking", {"message": f"Now verifying {total_to_verify} suppliers for {supply}..."})
+
             for supplier in india_results["suppliers"][:5]:  # Top 5
                 verification = await self._verify_supplier(supplier)
                 supplier["verification"] = verification
-                
+
                 if verification["confidence"] > 0.6:  # Only include if confidence > 60%
                     verified_suppliers.append(supplier)
-            
+                    self.log_execution("thinking", {"message": f"✓ {supplier.get('name', 'Supplier')} verified with {verification['confidence']:.0%} confidence"})
+                else:
+                    self.log_execution("thinking", {"message": f"⚠️ {supplier.get('name', 'Supplier')} failed verification (confidence: {verification['confidence']:.0%})"})
+
             all_suppliers.extend(verified_suppliers)
         
         # Count India vs global suppliers
@@ -144,20 +150,23 @@ class SupplyHunterAgent(BaseAgent):
         
         for query in queries:
             self.log_execution("web_search", {"query": query, "region": "India"})
-            
+
             # Call scraper service to search
             results = await self.scraper.search(
                 query=query,
                 region="in",  # India
                 num_results=10
             )
-            
+
+            # Log search results
+            self.log_execution("search_results", {"results_count": len(results), "query": query})
+
             search_logs.append({
                 "query": query,
                 "results_count": len(results),
                 "timestamp": self._get_timestamp()
             })
-            
+
             # Parse each result
             for result in results:
                 supplier_data = await self._parse_supplier_page(result)
@@ -165,8 +174,10 @@ class SupplyHunterAgent(BaseAgent):
                     all_results.append(supplier_data)
         
         # Deduplicate by name/website
+        self.log_execution("cross_referencing", {"total_results": len(all_results)})
         unique_suppliers = self._deduplicate_suppliers(all_results)
-        
+        self.log_execution("thinking", {"message": f"Filtered to {len(unique_suppliers)} unique suppliers after removing duplicates"})
+
         return {
             "suppliers": unique_suppliers,
             "search_logs": search_logs
@@ -200,8 +211,9 @@ class SupplyHunterAgent(BaseAgent):
             
             if not page_content:
                 return None
-            
+
             # Use LLM to extract structured information
+            self.log_execution("extracting_data", {"url": url})
             extraction_prompt = f"""Extract supplier information from this webpage content:
 
 URL: {url}

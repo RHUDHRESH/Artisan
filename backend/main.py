@@ -14,10 +14,11 @@ app = FastAPI(
     version="1.0.0"
 )
 
-# CORS Configuration
+# CORS Configuration - Use settings
+cors_origins = settings.cors_origins.split(",") if settings.cors_origins != "*" else ["*"]
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # Configure appropriately for production
+    allow_origins=cors_origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -71,82 +72,112 @@ async def flight_check():
     
     # Wrap entire function in try-except to catch any unexpected errors
     try:
-        # Check 1: Ollama
-        ollama_check = {
+        # Check 1: LLM Provider Health (GROQ + Ollama)
+        llm_provider_check = {
             "status": "unknown",
             "message": "",
             "details": {}
         }
         try:
-            response = requests.get(
-                f"{settings.ollama_base_url}/api/tags",
-                timeout=5
-            )
-            if response.status_code == 200:
-                data = response.json()
-                models = [m.get("name", "") for m in data.get("models", [])]
-                available_models = [m for m in models if any(req in m for req in ["gemma3:4b", "gemma3:1b", "gemma3"])]
-                
-                ollama_check["status"] = "healthy" if available_models else "degraded"
-                ollama_check["message"] = f"Ollama connected. Found {len(available_models)} Gemma3 models"
-                ollama_check["details"] = {
-                    "base_url": settings.ollama_base_url,
-                    "available_models": available_models,
-                    "all_models": models[:5]  # First 5 models
-                }
+            from backend.core.llm_provider import LLMManager, LLMProvider
+
+            async def check_providers():
+                async with LLMManager(
+                    primary_provider=LLMProvider(settings.llm_provider),
+                    groq_api_key=settings.groq_api_key,
+                    ollama_base_url=settings.ollama_base_url
+                ) as llm_manager:
+                    return await llm_manager.health_check()
+
+            import asyncio
+            provider_health = await asyncio.create_task(check_providers())
+
+            active_provider = provider_health.get("active_provider", "unknown")
+            groq_available = provider_health.get("groq", {}).get("available", False)
+            ollama_available = provider_health.get("ollama", {}).get("available", False)
+
+            if groq_available or ollama_available:
+                llm_provider_check["status"] = "healthy"
+                llm_provider_check["message"] = f"LLM providers available (active: {active_provider})"
             else:
-                ollama_check["status"] = "unhealthy"
-                ollama_check["message"] = f"Ollama returned status {response.status_code}"
-                ollama_check["details"] = {"error": f"HTTP {response.status_code}"}
-        except requests.exceptions.ConnectionError:
-            ollama_check["status"] = "unhealthy"
-            ollama_check["message"] = f"Cannot connect to Ollama at {settings.ollama_base_url}"
-            ollama_check["details"] = {"error": "Connection refused - is Ollama running?", "url": settings.ollama_base_url}
+                llm_provider_check["status"] = "unhealthy"
+                llm_provider_check["message"] = "No LLM providers available"
+
+            llm_provider_check["details"] = {
+                "primary_provider": settings.llm_provider,
+                "active_provider": active_provider,
+                "groq": {
+                    "available": groq_available,
+                    "configured": bool(settings.groq_api_key and settings.groq_api_key != "your-groq-api-key-here")
+                },
+                "ollama": {
+                    "available": ollama_available,
+                    "base_url": settings.ollama_base_url
+                }
+            }
         except Exception as e:
-            ollama_check["status"] = "unhealthy"
-            ollama_check["message"] = f"Ollama check failed: {str(e)}"
-            ollama_check["details"] = {"error": str(e), "error_type": type(e).__name__}
-        
+            llm_provider_check["status"] = "unhealthy"
+            llm_provider_check["message"] = f"LLM provider check failed: {str(e)}"
+            llm_provider_check["details"] = {"error": str(e), "error_type": type(e).__name__}
+
+        results["checks"]["llm_provider"] = llm_provider_check
+
+        # Legacy Ollama check for backward compatibility
+        ollama_check = {
+            "status": llm_provider_check["details"].get("ollama", {}).get("available", False) and "healthy" or "unhealthy",
+            "message": "Ollama available" if llm_provider_check["details"].get("ollama", {}).get("available", False) else "Ollama not available",
+            "details": llm_provider_check["details"].get("ollama", {})
+        }
         results["checks"]["ollama"] = ollama_check
         
-        # Check 2: Test Ollama model generation (quick test)
-        ollama_test = {
+        # Check 2: Test LLM generation (quick test with active provider)
+        llm_generation_test = {
             "status": "unknown",
             "message": "",
             "details": {}
         }
         try:
-            from backend.core.ollama_client import OllamaClient
-            
-            # Simple synchronous test to avoid asyncio conflicts
-            async def simple_test():
+            from backend.core.llm_provider import LLMManager, LLMProvider
+
+            # Simple test to verify LLM generation works
+            async def generation_test():
                 try:
-                    async with OllamaClient() as client:
+                    async with LLMManager(
+                        primary_provider=LLMProvider(settings.llm_provider),
+                        groq_api_key=settings.groq_api_key,
+                        ollama_base_url=settings.ollama_base_url
+                    ) as llm_manager:
                         # Quick test with fast model
-                        result = await client.fast_task("Say OK")
-                        return True, result[:50]
+                        result = await llm_manager.fast_task("Say OK", temperature=0.1)
+                        active_provider = llm_manager._get_active_client().__class__.__name__
+                        return True, result[:50], active_provider
                 except Exception as e:
-                    return False, str(e)
-            
+                    return False, str(e), "unknown"
+
             # Use asyncio.create_task to avoid event loop conflicts
             import asyncio
-            task = asyncio.create_task(simple_test())
+            task = asyncio.create_task(generation_test())
             test_result = await task
-            
+
             if test_result[0]:
-                ollama_test["status"] = "healthy"
-                ollama_test["message"] = "Ollama model generation working"
-                ollama_test["details"] = {"test_response": test_result[1]}
+                llm_generation_test["status"] = "healthy"
+                llm_generation_test["message"] = f"LLM generation working (using {test_result[2]})"
+                llm_generation_test["details"] = {
+                    "test_response": test_result[1],
+                    "provider": test_result[2]
+                }
             else:
-                ollama_test["status"] = "unhealthy"
-                ollama_test["message"] = f"Ollama generation failed: {test_result[1]}"
-                ollama_test["details"] = {"error": test_result[1]}
+                llm_generation_test["status"] = "unhealthy"
+                llm_generation_test["message"] = f"LLM generation failed: {test_result[1]}"
+                llm_generation_test["details"] = {"error": test_result[1]}
         except Exception as e:
-            ollama_test["status"] = "unhealthy"
-            ollama_test["message"] = f"Ollama test error: {str(e)}"
-            ollama_test["details"] = {"error": str(e), "error_type": type(e).__name__}
-        
-        results["checks"]["ollama_generation"] = ollama_test
+            llm_generation_test["status"] = "unhealthy"
+            llm_generation_test["message"] = f"LLM test error: {str(e)}"
+            llm_generation_test["details"] = {"error": str(e), "error_type": type(e).__name__}
+
+        results["checks"]["llm_generation"] = llm_generation_test
+        # Legacy name for backward compatibility
+        results["checks"]["ollama_generation"] = llm_generation_test
         
         # Check 3: ChromaDB - auto-initialize
         chroma_check = {
@@ -308,7 +339,7 @@ async def flight_check():
 
 
 # Include routers
-from backend.api.routes import chat, agents, maps, search, context
+from backend.api.routes import chat, agents, maps, search, context, settings
 from fastapi import WebSocket
 
 app.include_router(chat.router)
@@ -316,6 +347,7 @@ app.include_router(agents.router)
 app.include_router(maps.router)
 app.include_router(search.router)
 app.include_router(context.router)
+app.include_router(settings.router)
 
 @app.websocket("/ws")
 async def websocket_route(websocket: WebSocket):
