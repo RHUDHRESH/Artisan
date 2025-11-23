@@ -5,4 +5,20 @@ export const config = {
   environment: process.env.NODE_ENV || "development",
 } as const;
 
+export function buildApiUrl(path: string): string {
+  const baseUrl = config.apiUrl;
+  const normalizedPath = path.startsWith('/') ? path : `/${path}`;
+  return `${baseUrl}${normalizedPath}`;
+}
+
+export function buildWsUrl(path: string): string {
+  const baseUrl = config.wsUrl;
+  const normalizedPath = path.startsWith('/') ? path : `/${path}`;
+  // Remove duplicate /ws if path already contains it
+  if (normalizedPath.startsWith('/ws')) {
+    return baseUrl.replace(/\/ws$/, '') + normalizedPath;
+  }
+  return `${baseUrl}${normalizedPath}`;
+}
+
 export default config;

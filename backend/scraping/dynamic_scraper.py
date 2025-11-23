@@ -1,7 +1,7 @@
 """
 Dynamic Scraper - Playwright-based scraper for JavaScript-rendered content
 """
-from typing import Optional
+from typing import Dict, Optional
 from playwright.async_api import async_playwright
 from loguru import logger
 
