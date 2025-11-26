@@ -51,6 +51,10 @@ class Settings(BaseSettings):
     # Environment metadata
     environment: str = "development"
     commit_sha: str = "unknown"
+    
+    # Feature flags
+    enable_heavy_features: bool = False  # Set to True to load AI/ML stack (needs 1GB+ RAM)
+    port: int = 8000  # Server port, overridden by PORT env var
 
     # Firebase (optional)
     firebase_credentials_path: Optional[str] = None
@@ -106,6 +110,8 @@ env_overrides = {
     "SUPABASE_KEY": "supabase_key",
     "SUPABASE_JWT_SECRET": "supabase_jwt_secret",
     "REDIS_URL": "redis_url",
+    "ENABLE_HEAVY_FEATURES": "enable_heavy_features",
+    "PORT": "port",
 }
 
 for env_var, setting_attr in env_overrides.items():

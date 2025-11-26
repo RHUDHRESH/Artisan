@@ -1,0 +1,22 @@
+# Minimal requirements for Render free tier deployment
+# This allows the backend to boot successfully on 512MB instances
+
+# Core Framework (MANDATORY)
+fastapi>=0.104.0,<1.0.0
+uvicorn[standard]>=0.24.0,<1.0.0
+pydantic>=2.4.0,<3.0.0
+pydantic-settings>=2.0.0,<3.0.0
+
+# Utilities (MANDATORY)
+python-dotenv>=1.0.0
+httpx>=0.25.0
+aiohttp>=3.9.0
+
+# Lightweight logging (replaces heavy structlog + prometheus stack)
+loguru>=0.7.0
+
+# Cloud LLM for chat (GROQ - very lightweight)
+groq>=0.4.0
+
+# Optional: If you need basic request handling
+requests>=2.31.0
