@@ -45,18 +45,18 @@ COPY . .
 # Create data directory for ChromaDB
 RUN mkdir -p /app/data/chroma_db /app/data/cache
 
-# Set environment variables
 ENV PYTHONUNBUFFERED=1 \
     PYTHONDONTWRITEBYTECODE=1 \
     CHROMA_DB_PATH=/app/data/chroma_db \
-    LOG_LEVEL=INFO
+    LOG_LEVEL=INFO \
+    PORT=8000
 
-# Expose port
-EXPOSE 8000
+# Expose ports we listen on locally and in Cloud Run
+EXPOSE 8000 8080
 
 # Health check
 HEALTHCHECK --interval=30s --timeout=10s --start-period=40s --retries=3 \
-    CMD curl -f http://localhost:8000/health || exit 1
+    CMD curl -f http://localhost:${PORT:-8000}/health || exit 1
 
-# Run the application
-CMD ["uvicorn", "backend.main:app", "--host", "0.0.0.0", "--port", "8000"]
+# Run the application using the port provided by Cloud Run
+CMD uvicorn backend.main:app --host 0.0.0.0 --port ${PORT:-8000}

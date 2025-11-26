@@ -12,6 +12,8 @@ Complete guide for deploying Artisan Hub to production environments.
 
 ---
 
+> ⚠️ Backend deployments now use Google Cloud Run and the accompanying `cloudbuild.yaml`. The legacy `render.yaml` manifest is retained only for historical reference; CI/CD pipelines and docs focus on Cloud Run and Secret Manager.
+
 ## Prerequisites
 
 ### Required Accounts & API Keys
@@ -194,6 +196,8 @@ gcloud config set project YOUR_PROJECT_ID
 ```
 
 ### Option 1: Cloud Run (Recommended)
+
+Cloud Run exposes a `PORT` environment variable (default 8080), and the backend container now respects `${PORT}` with a fallback to `8000` so it works both locally and in Cloud Run. The provided `cloudbuild.yaml` automates building, pushing, and deploying while loading secrets from Secret Manager entries such as `groq-api-key`, `tavily-api-key`, and `supabase-key`. You can trigger that config manually via `gcloud builds submit --config cloudbuild.yaml` or wire it up to a Cloud Build trigger tied to your repo.
 
 **1. Build and Push Image**
 ```bash

@@ -166,6 +166,8 @@ Useful patterns:
 
 ## Deployment
 
+> ⚠️ Cloud Run is the canonical choice for the backend today. The Render manifest (`render.yaml`) remains in the repo for historical context only; updates and CI/CD pipelines target Google Cloud Run instead.
+
 ### Docker (local/prod)
 ```bash
 ./docker-start.sh prod    # or: docker-compose up -d --build
@@ -179,6 +181,10 @@ Ports: backend 8000, frontend 3000, Ollama 11434.
 - Connect repo in Vercel dashboard or run `vercel --prod` inside `frontend/`.
 
 ### Google Cloud Run (backend)
+Cloud Run is the recommended backend host, and the included `cloudbuild.yaml` automates building, pushing, and deploying the service while loading secrets from Secret Manager entries such as `groq-api-key` and `tavily-api-key`.
+
+Cloud Run exposes a `PORT` environment variable (default 8080). The backend container now respects `${PORT}` with a fallback to `8000`, so the same image works locally and on Cloud Run.
+
 ```bash
 gcloud builds submit --tag gcr.io/<PROJECT_ID>/artisan-backend
 gcloud run deploy artisan-backend \
