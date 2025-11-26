@@ -168,6 +168,12 @@ Useful patterns:
 
 > ⚠️ Cloud Run is the canonical choice for the backend today. The Render manifest (`render.yaml`) remains in the repo for historical context only; updates and CI/CD pipelines target Google Cloud Run instead.
 
+### Render (backend alt)
+- Repo already has `render.yaml`; start command is `uvicorn backend.main:app --host 0.0.0.0 --port $PORT` (no `python -m`, no `--reload`).
+- In Render Dashboard: New → Web Service → use this repo root. Build command: `pip install -r requirements.txt` (default). Start command: same as above.
+- Set env vars: `PYTHON_VERSION=3.11`, `ENVIRONMENT=production`, `LOG_LEVEL=info`, `LLM_PROVIDER=groq`, `GROQ_API_KEY` (secret), `TAVILY_API_KEY` (secret), `CORS_ORIGINS=https://your-frontend.vercel.app`.
+- Health check URL: `/health` or `/monitoring/health/ready`. Logs live in Render → Logs; avoid binding your own port in code—`PORT` is injected and respected by `backend/main.py`.
+
 ### Docker (local/prod)
 ```bash
 ./docker-start.sh prod    # or: docker-compose up -d --build

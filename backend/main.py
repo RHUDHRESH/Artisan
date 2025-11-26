@@ -7,6 +7,7 @@ from backend.models import HealthResponse
 from backend.config import settings
 from backend.core.flight_check import FlightCheck
 from backend.core.ollama_client import OllamaClient
+import os
 import uvicorn
 
 # Comprehensive API documentation
@@ -208,10 +209,11 @@ async def websocket_route(websocket: WebSocket):
 
 
 if __name__ == "__main__":
+    port = int(os.getenv("PORT", "8000"))
     uvicorn.run(
         "backend.main:app",
         host="0.0.0.0",
-        port=8000,
-        reload=True,
-        log_level="info"
+        port=port,
+        reload=settings.environment != "production",
+        log_level=settings.log_level
     )
