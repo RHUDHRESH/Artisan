@@ -19,10 +19,44 @@ from backend.constants import (
     MIN_QUERY_LENGTH, MAX_QUERY_LENGTH,
     MIN_PROFILE_NAME_LENGTH, MAX_PROFILE_NAME_LENGTH
 )
+from backend.config import settings
+from backend.core.supabase_client import get_supabase_client
 from loguru import logger
 
 router = APIRouter(prefix="/agents", tags=["agents"])
 local_store = LocalStore()
+supabase_client = (
+    get_supabase_client(settings.supabase_url, settings.supabase_key)
+    if settings.supabase_url and settings.supabase_key
+    else None
+)
+
+
+async def persist_results(search_type: str, user_id: str, results: List[Dict]):
+    """Mirror recent items into Supabase when configured."""
+    if not results or not supabase_client or not getattr(supabase_client, "enabled", False):
+        return
+    try:
+        await supabase_client.save_search_results(user_id, search_type, results)
+        if search_type == "suppliers":
+            for supplier in results:
+                await supabase_client.save_supplier(supplier)
+    except Exception as exc:
+        logger.debug(f"Supabase persistence skipped ({search_type}): {exc}")
+
+
+async def fetch_recent_results(search_type: str, user_id: str, limit: int = 25) -> Optional[List[Dict]]:
+    """Fetch recent search results from Supabase if available."""
+    if not supabase_client or not getattr(supabase_client, "enabled", False):
+        return None
+    try:
+        rows = await supabase_client.get_recent_searches(user_id, limit=limit)
+        for row in rows:
+            if row.get("search_type") == search_type:
+                return row.get("results") or []
+    except Exception as exc:
+        logger.debug(f"Supabase fetch failed ({search_type}): {exc}")
+    return None
 
 
 class ProfileAnalysisRequest(BaseModel):
@@ -219,6 +253,11 @@ async def search_suppliers(request: SupplySearchRequest):
             "location": request.location,
             "user_id": request.user_id
         })
+        if isinstance(result, dict) and result.get("error"):
+            raise HTTPException(
+                status_code=400,
+                detail=result
+            )
         # Persist and normalize shape for UI
         try:
             user_id = request.user_id or "anonymous"
@@ -234,6 +273,8 @@ async def search_suppliers(request: SupplySearchRequest):
                 "location": request.location,
                 "supplies_needed": request.supplies_needed,
             })
+            await persist_results("suppliers", user_id, suppliers)
+            await persist_results("materials", user_id, suppliers)
         except Exception as persist_err:
             logger.debug(f"Failed to persist suppliers: {persist_err}")
 
@@ -265,6 +306,11 @@ async def analyze_growth(request: GrowthAnalysisRequest):
             "location": request.location,
             "user_id": request.user_id
         })
+        if isinstance(result, dict) and result.get("error"):
+            raise HTTPException(
+                status_code=400,
+                detail=result
+            )
         # Normalize to a generic list and persist as opportunities
         try:
             # Build a list of highlights for UI
@@ -282,6 +328,7 @@ async def analyze_growth(request: GrowthAnalysisRequest):
             normalized = dict(result)
             normalized.setdefault("opportunities", combined)
             normalized.setdefault("results", combined)
+            await persist_results("opportunities", user_id, combined)
             return normalized
         except Exception as persist_err:
             logger.debug(f"Failed to persist opportunities: {persist_err}")
@@ -312,6 +359,11 @@ async def search_events(request: EventSearchRequest):
             "travel_radius_km": request.travel_radius_km or 100,
             "user_id": request.user_id
         })
+        if isinstance(result, dict) and result.get("error"):
+            raise HTTPException(
+                status_code=400,
+                detail=result
+            )
         # Persist and normalize shape for UI
         try:
             events = result.get("upcoming_events", [])
@@ -324,6 +376,7 @@ async def search_events(request: EventSearchRequest):
             normalized = dict(result)
             normalized.setdefault("events", events)
             normalized.setdefault("results", events)
+            await persist_results("events", user_id, events)
             return normalized
         except Exception as persist_err:
             logger.debug(f"Failed to persist events: {persist_err}")
@@ -376,7 +429,9 @@ async def list_tools():
 @router.get("/suppliers/recent")
 async def get_recent_suppliers(user_id: Optional[str] = Query(None)):
     try:
-        items = local_store.get_suppliers(user_id or "anonymous")
+        user = user_id or "anonymous"
+        supabase_items = await fetch_recent_results("suppliers", user)
+        items = supabase_items if supabase_items is not None else local_store.get_suppliers(user)
         return {"suppliers": items, "results": items}
     except Exception as e:
         logger.error(f"Get recent suppliers error: {e}")
@@ -386,7 +441,9 @@ async def get_recent_suppliers(user_id: Optional[str] = Query(None)):
 @router.get("/opportunities/recent")
 async def get_recent_opportunities(user_id: Optional[str] = Query(None)):
     try:
-        items = local_store.get_opportunities(user_id or "anonymous")
+        user = user_id or "anonymous"
+        supabase_items = await fetch_recent_results("opportunities", user)
+        items = supabase_items if supabase_items is not None else local_store.get_opportunities(user)
         return {"opportunities": items, "results": items}
     except Exception as e:
         logger.error(f"Get recent opportunities error: {e}")
@@ -401,7 +458,11 @@ async def get_recent_events(
     date_to: Optional[str] = Query(None, description="YYYY-MM-DD"),
 ):
     try:
-        items = local_store.get_events(user_id or "anonymous", city=city, date_from=date_from, date_to=date_to)
+        user = user_id or "anonymous"
+        supabase_items = None
+        if not any([city, date_from, date_to]):
+            supabase_items = await fetch_recent_results("events", user)
+        items = supabase_items if supabase_items is not None else local_store.get_events(user, city=city, date_from=date_from, date_to=date_to)
         return {"events": items, "results": items}
     except Exception as e:
         logger.error(f"Get recent events error: {e}")
@@ -411,7 +472,9 @@ async def get_recent_events(
 @router.get("/materials/recent")
 async def get_recent_materials(user_id: Optional[str] = Query(None)):
     try:
-        items = local_store.get_materials(user_id or "anonymous")
+        user = user_id or "anonymous"
+        supabase_items = await fetch_recent_results("materials", user)
+        items = supabase_items if supabase_items is not None else local_store.get_materials(user)
         return {"materials": items, "results": items}
     except Exception as e:
         logger.error(f"Get recent materials error: {e}")

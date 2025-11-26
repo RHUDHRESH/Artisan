@@ -1,0 +1,8 @@
+2025-11-24 06:29:54.576 | INFO     | backend.api.websocket:__init__:18 - ConnectionManager initialized with thread-safe operations
+INFO:     Started server process [8456]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.
+INFO:     Uvicorn running on http://0.0.0.0:8000 (Press CTRL+C to quit)
+INFO:     127.0.0.1:60704 - "WebSocket /ws" [accepted]
+2025-11-24 06:29:58.762 | INFO     | backend.api.websocket:connect:39 - WebSocket connected. Total connections: 1
+INFO:     connection open

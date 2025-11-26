@@ -1,0 +1,5 @@
+- [x] Update frontend production gate/agent views to surface web search blocking state and guide on adding Tavily/SerpAPI keys.
+- [x] Add connection status badge and retry/backoff for WebSocket in AgentView; stop showing false “not connected” messages.
+- [x] Add a stop/reset control and timeout guard so searches don’t spin forever; surface “no results” clearly when empty.
+- [ ] Add API response/error handling tests (flight check web_search, scraper missing key, agent error propagation).
+- [ ] Document the new blocking behavior in README/HOW_TO_USE/TROUBLESHOOTING with sample error JSON.

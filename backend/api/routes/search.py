@@ -3,7 +3,7 @@ Search API endpoints
 """
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
-from typing import Optional, List
+from typing import Optional, List, Any
 from backend.scraping.search_engine import SearchEngine
 from loguru import logger
 
@@ -28,7 +28,15 @@ async def web_search(request: SearchRequest):
                 region=request.region,
                 num_results=request.num_results
             )
-            
+
+            # Handle structured error responses from search engine
+            if isinstance(results, dict) and results.get("error"):
+                status = 400 if results.get("error") == "missing_api_key" else 502
+                raise HTTPException(status_code=status, detail=results)
+
+            if not isinstance(results, list):
+                results = []
+
             return {
                 "query": request.query,
                 "region": request.region,

@@ -2,6 +2,7 @@
 RAG Engine - Retrieval Augmented Generation implementation
 """
 from typing import List, Dict, Optional
+from backend.config import settings
 from backend.core.ollama_client import OllamaClient
 from backend.core.vector_store import ArtisanVectorStore
 from loguru import logger
@@ -63,13 +64,13 @@ Provide a helpful answer based on the context above. If the context doesn't cont
                 prompt=prompt,
                 system=system_prompt
             )
-            model_used = OllamaClient.REASONING_MODEL
+            model_used = settings.reasoning_model
         else:
             response = await self.ollama.fast_task(
                 prompt=prompt,
                 system=system_prompt
             )
-            model_used = OllamaClient.FAST_MODEL
+            model_used = settings.fast_model
         
         return {
             "response": response,
@@ -150,6 +151,6 @@ Respond based on the user's history and context."""
         return {
             "response": response,
             "context_used": relevant_docs,
-            "model_used": OllamaClient.REASONING_MODEL
+            "model_used": settings.reasoning_model
         }
 

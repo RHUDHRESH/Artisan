@@ -39,7 +39,7 @@ steps:
       - 'managed'
       - '--allow-unauthenticated'
       - '--set-env-vars'
-      - 'LLM_PROVIDER=$$LLM_PROVIDER,GROQ_API_KEY=$$GROQ_API_KEY,TAVILY_API_KEY=$$TAVILY_API_KEY,CORS_ORIGINS=$$CORS_ORIGINS'
+      - 'LLM_PROVIDER=$$LLM_PROVIDER,GROQ_API_KEY=$$GROQ_API_KEY,TAVILY_API_KEY=$$TAVILY_API_KEY,CORS_ORIGINS=$$CORS_ORIGINS,SUPABASE_URL=$$SUPABASE_URL,SUPABASE_KEY=$$SUPABASE_KEY'
       - '--memory'
       - '4Gi'
       - '--cpu'
@@ -55,6 +55,8 @@ steps:
       - 'TAVILY_API_KEY'
       - 'LLM_PROVIDER'
       - 'CORS_ORIGINS'
+      - 'SUPABASE_URL'
+      - 'SUPABASE_KEY'
     waitFor: ['push-backend']
 
 # Secrets
@@ -68,6 +70,10 @@ availableSecrets:
       env: 'LLM_PROVIDER'
     - versionName: projects/$PROJECT_ID/secrets/cors-origins/versions/latest
       env: 'CORS_ORIGINS'
+    - versionName: projects/$PROJECT_ID/secrets/supabase-url/versions/latest
+      env: 'SUPABASE_URL'
+    - versionName: projects/$PROJECT_ID/secrets/supabase-key/versions/latest
+      env: 'SUPABASE_KEY'
 
 # Images to push
 images:

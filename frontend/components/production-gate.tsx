@@ -806,36 +806,84 @@ function AgentView({
   const [loadingRecent, setLoadingRecent] = React.useState(false);
   const [expandedLog, setExpandedLog] = React.useState<number | null>(null);
   const [error, setError] = React.useState<string | null>(null);
+  const [wsStatus, setWsStatus] = React.useState<"connecting" | "connected" | "reconnecting" | "error">("connecting");
+  const [wsError, setWsError] = React.useState<string | null>(null);
+  const [statusMessage, setStatusMessage] = React.useState<string | null>(null);
+  const [blockingInfo, setBlockingInfo] = React.useState<{ title: string; message: string; action?: string } | null>(null);
   const wsRef = React.useRef<WebSocket | null>(null);
   const reconnectTimer = React.useRef<any>(null);
+  const searchController = React.useRef<AbortController | null>(null);
+  const stuckTimer = React.useRef<ReturnType<typeof setTimeout> | null>(null);
+  const wsBadgeStyles: Record<"connecting" | "connected" | "reconnecting" | "error", string> = {
+    connecting: "bg-yellow-100 text-yellow-800",
+    connected: "bg-green-100 text-green-800",
+    reconnecting: "bg-blue-100 text-blue-800",
+    error: "bg-red-100 text-red-800"
+  };
+  const wsBadgeText: Record<"connecting" | "connected" | "reconnecting" | "error", string> = {
+    connecting: "Connecting to live logs…",
+    connected: "Live logs active",
+    reconnecting: "Reconnecting…",
+    error: "Live logs unavailable"
+  };
 
   const connectWebSocket = React.useCallback(() => {
+    setWsStatus((prev) => (prev === "connected" ? prev : "connecting"));
+    setWsError(null);
     try {
       const ws = new WebSocket(buildWsUrl("/ws"));
       ws.onopen = () => {
+        setWsStatus("connected");
+        setWsError(null);
         ws.send(JSON.stringify({ type: "subscribe" }));
       };
       ws.onmessage = (event) => {
         const data = JSON.parse(event.data);
         if (data.type === "agent_progress") {
-          setSearchLogs(prev => [...prev, {
-            timestamp: data.timestamp,
-            agent: data.agent,
-            step: data.step,
-            message: data.message || data.step,
-            data: data.data
-          }]);
+          setSearchLogs((prev) => [
+            ...prev,
+            {
+              timestamp: data.timestamp,
+              agent: data.agent,
+              step: data.step,
+              message: data.message || data.step,
+              data: data.data
+            }
+          ]);
         }
       };
-      ws.onerror = () => setError("WebSocket connection lost. Reconnecting...");
+      ws.onerror = () => {
+        setWsStatus("error");
+        setWsError("Live log connection lost. Retrying...");
+      };
       ws.onclose = () => {
+        setWsStatus("reconnecting");
+        setWsError("Reconnecting to live logs...");
         reconnectTimer.current = setTimeout(connectWebSocket, 5000);
       };
       wsRef.current = ws;
     } catch (e) {
-      setError("WebSocket init failed");
+      setWsStatus("error");
+      setWsError("WebSocket initialization failed");
     }
   }, []);
+
+  const clearStuckTimer = React.useCallback(() => {
+    if (stuckTimer.current) {
+      clearTimeout(stuckTimer.current);
+      stuckTimer.current = null;
+    }
+  }, []);
+
+  const stopSearch = React.useCallback(() => {
+    if (searchController.current) {
+      searchController.current.abort();
+      searchController.current = null;
+    }
+    clearStuckTimer();
+    setIsSearching(false);
+    setStatusMessage("Search stopped.");
+  }, [clearStuckTimer]);
 
   const loadRecent = React.useCallback(async () => {
     try {
@@ -864,14 +912,28 @@ function AgentView({
     return () => {
       if (reconnectTimer.current) clearTimeout(reconnectTimer.current);
       if (wsRef.current) wsRef.current.close();
+      if (searchController.current) searchController.current.abort();
+      clearStuckTimer();
     };
-  }, [connectWebSocket, loadRecent]);
+  }, [connectWebSocket, loadRecent, clearStuckTimer]);
 
   const startSearch = async () => {
+    if (searchController.current) {
+      searchController.current.abort();
+    }
+    clearStuckTimer();
     setIsSearching(true);
     setSearchLogs([]);
     setResults([]);
     setError(null);
+    setStatusMessage(null);
+    setBlockingInfo(null);
+
+    const controller = new AbortController();
+    searchController.current = controller;
+    stuckTimer.current = setTimeout(() => {
+      setStatusMessage("Still working... the backend is processing your request.");
+    }, 30000);
 
     try {
       const userAnswers = answers || JSON.parse(localStorage.getItem("questionnaireAnswers") || "{}");
@@ -880,51 +942,118 @@ function AgentView({
       const response = await fetch(buildApiUrl(`/agents/${endpoint}`), {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(requestBody)
+        body: JSON.stringify(requestBody),
+        signal: controller.signal
       });
 
       if (!response.ok) {
-        const errorData = await response.json().catch(() => ({ detail: `HTTP ${response.status}: ${response.statusText}` }));
-        throw new Error(errorData.detail || `Request failed: ${response.status}`);
+        const errorData = await response.json().catch(() => null);
+        const detail = errorData?.detail ?? errorData;
+        const friendlyMessage =
+          detail?.message ||
+          (typeof detail === "string" ? detail : `HTTP ${response.status}: ${response.statusText}`);
+        throw { message: friendlyMessage, detail };
       }
 
       const result = await response.json();
       const resultsArray = result.results || result.events || result.opportunities || result.materials || [];
-      setResults(resultsArray);
-      setSearchLogs(prev => [...prev, {
-        timestamp: new Date().toISOString(),
-        agent: title,
-        step: "complete",
-        message: `✅ Complete! Found ${resultsArray.length} items`,
-        data: result
-      }]);
+      const normalizedResults = Array.isArray(resultsArray) ? resultsArray : [];
+      setResults(normalizedResults);
+      setBlockingInfo(null);
+      setError(null);
+      setStatusMessage(
+        normalizedResults.length === 0 ? "No results found. Try adjusting your inputs." : null
+      );
+      setSearchLogs((prev) => [
+        ...prev,
+        {
+          timestamp: new Date().toISOString(),
+          agent: title,
+          step: "complete",
+          message: `✅ Complete! Found ${normalizedResults.length} items`,
+          data: result
+        }
+      ]);
     } catch (error: any) {
-      const errorMessage = error?.message || `Failed to ${buttonText.toLowerCase()}`;
-      setError(errorMessage);
-      setSearchLogs(prev => [...prev, {
-        timestamp: new Date().toISOString(),
-        agent: title,
-        step: "error",
-        message: `❌ Error: ${errorMessage}`,
-        data: { error: errorMessage }
-      }]);
+      if (error?.name === "AbortError") {
+        setStatusMessage("Search canceled.");
+        setSearchLogs((prev) => [
+          ...prev,
+          {
+            timestamp: new Date().toISOString(),
+            agent: title,
+            step: "canceled",
+            message: "⚠️ Search canceled",
+            data: {}
+          }
+        ]);
+      } else {
+        const detail = error?.detail;
+        let errorMessage = error?.message || `Failed to ${buttonText.toLowerCase()}`;
+        if (detail?.error === "missing_api_key") {
+          setBlockingInfo({
+            title: "Web search unavailable",
+            message: detail?.message || errorMessage,
+            action: "Add TAVILY_API_KEY (preferred) or SERPAPI_KEY to your .env and restart the backend."
+          });
+        } else {
+          setBlockingInfo(null);
+        }
+        setError(errorMessage);
+        setStatusMessage(detail?.blocking ? detail.message : errorMessage);
+        setSearchLogs((prev) => [
+          ...prev,
+          {
+            timestamp: new Date().toISOString(),
+            agent: title,
+            step: "error",
+            message: `❌ Error: ${errorMessage}`,
+            data: detail || { error: errorMessage }
+          }
+        ]);
+      }
     } finally {
+      clearStuckTimer();
       setIsSearching(false);
+      searchController.current = null;
     }
   };
 
   return (
     <div>
-      <div className="flex justify-between items-center mb-4">
-        <h2 className="text-2xl font-bold">{title}</h2>
-        <button
-          onClick={startSearch}
-          disabled={isSearching}
-          className="px-4 py-2 bg-black text-white rounded hover:bg-gray-800 disabled:bg-gray-400"
-        >
-          {isSearching ? "Searching..." : buttonText}
-        </button>
+      <div className="flex justify-between items-start mb-4 gap-4 flex-wrap">
+        <div>
+          <h2 className="text-2xl font-bold">{title}</h2>
+          <div className="flex items-center gap-2 mt-1">
+            <span className={`text-xs font-semibold px-2 py-1 rounded-full ${wsBadgeStyles[wsStatus]}`}>
+              {wsBadgeText[wsStatus]}
+            </span>
+            {wsError && <span className="text-xs text-red-600">{wsError}</span>}
+          </div>
+        </div>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={startSearch}
+            disabled={isSearching}
+            className="px-4 py-2 bg-black text-white rounded hover:bg-gray-800 disabled:bg-gray-400"
+          >
+            {isSearching ? "Searching..." : buttonText}
+          </button>
+          <button
+            onClick={stopSearch}
+            disabled={!isSearching}
+            className="px-4 py-2 border-2 border-black rounded text-black hover:bg-gray-50 disabled:border-gray-300 disabled:text-gray-400"
+          >
+            Stop
+          </button>
+        </div>
       </div>
+
+      {statusMessage && (
+        <div className="mb-4 p-3 bg-blue-50 border-2 border-blue-200 rounded-lg">
+          <p className="text-sm text-blue-900">{statusMessage}</p>
+        </div>
+      )}
 
       {error && (
         <div className="mb-4 p-4 bg-red-50 border-2 border-red-500 rounded-lg">
@@ -932,6 +1061,16 @@ function AgentView({
             <span className="text-red-600 font-bold">⚠️</span>
             <p className="font-semibold text-red-800">Error: {error}</p>
           </div>
+        </div>
+      )}
+
+      {blockingInfo && (
+        <div className="mb-4 p-4 bg-red-50 border-2 border-red-400 rounded-lg">
+          <h3 className="font-semibold text-red-800">{blockingInfo.title}</h3>
+          <p className="text-sm text-red-700 mt-1">{blockingInfo.message}</p>
+          {blockingInfo.action && (
+            <p className="text-xs text-red-700 mt-2">{blockingInfo.action}</p>
+          )}
         </div>
       )}
 
@@ -1006,6 +1145,10 @@ function AgentView({
             ))}
           </div>
         </div>
+      )}
+
+      {!isSearching && results.length === 0 && searchLogs.length > 0 && !error && (
+        <p className="text-gray-600">No results returned. Try refining your inputs or check the work log above for clues.</p>
       )}
 
       {!isSearching && searchLogs.length === 0 && results.length === 0 && (

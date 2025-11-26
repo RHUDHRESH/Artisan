@@ -125,10 +125,16 @@ export function Questionnaire({ onComplete }: QuestionnaireProps) {
             <input
               type="text"
               value={currentAnswer}
-              onChange={(e) => setCurrentAnswer(e.target.value)}
-              onKeyPress={(e) => {
-                if (e.key === "Enter" && currentAnswer.trim()) {
-                  handleNext();
+              onChange={(e) => {
+                console.log("Input changed:", e.target.value);
+                setCurrentAnswer(e.target.value);
+              }}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") {
+                  console.log("Enter pressed, currentAnswer:", currentAnswer);
+                  if (currentAnswer.trim()) {
+                    handleNext();
+                  }
                 }
               }}
               placeholder={currentQuestion.placeholder}

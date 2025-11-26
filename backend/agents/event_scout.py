@@ -60,15 +60,64 @@ class EventScoutAgent(BaseAgent):
         craft_type = user_profile.get("craft_type", "")
         location = user_profile.get("location", {})
         travel_radius = user_profile.get("travel_radius_km", 100)
+
+        # Fail fast when web search is unavailable
+        if not getattr(self.scraper, "tavily_api_key", None) and not getattr(self.scraper, "serpapi_key", None):
+            message = "Web search unavailable: add TAVILY_API_KEY (preferred) or SERPAPI_KEY to .env and restart the backend."
+            self.log_execution("error", {"message": message, "provider": None})
+            return {
+                "upcoming_events": [],
+                "government_schemes": [],
+                "workshop_opportunities": [],
+                "total_events_found": 0,
+                "events_within_radius": 0,
+                "error": {
+                    "error": "missing_api_key",
+                    "message": message,
+                    "provider": None,
+                    "action_required": True,
+                },
+                "execution_logs": self.get_logs(),
+            }
         
         # Step 1: Search for upcoming craft fairs and exhibitions
         events = await self._search_events(craft_type, location, travel_radius)
+        if isinstance(events, dict) and events.get("error"):
+            return {
+                "upcoming_events": [],
+                "government_schemes": [],
+                "workshop_opportunities": [],
+                "total_events_found": 0,
+                "events_within_radius": 0,
+                "error": events["error"],
+                "execution_logs": self.get_logs(),
+            }
         
         # Step 2: Find government schemes
         schemes = await self._find_government_schemes(craft_type, location)
+        if isinstance(schemes, dict) and schemes.get("error"):
+            return {
+                "upcoming_events": [],
+                "government_schemes": [],
+                "workshop_opportunities": [],
+                "total_events_found": 0,
+                "events_within_radius": 0,
+                "error": schemes["error"],
+                "execution_logs": self.get_logs(),
+            }
         
         # Step 3: Discover workshop opportunities
         workshops = await self._find_workshops(craft_type, location)
+        if isinstance(workshops, dict) and workshops.get("error"):
+            return {
+                "upcoming_events": [],
+                "government_schemes": [],
+                "workshop_opportunities": [],
+                "total_events_found": 0,
+                "events_within_radius": 0,
+                "error": workshops["error"],
+                "execution_logs": self.get_logs(),
+            }
         
         # Step 4: Calculate ROI for each event
         for event in events:
@@ -104,7 +153,7 @@ class EventScoutAgent(BaseAgent):
         craft_type: str,
         location: Dict,
         radius_km: int
-    ) -> List[Dict]:
+    ) -> List[Dict] | Dict:
         """Search for craft events"""
         self.log_execution("searching_events", {"craft": craft_type, "location": location})
         
@@ -128,6 +177,14 @@ class EventScoutAgent(BaseAgent):
         
         for query in queries:
             results = await self.scraper.search(query, region="in", num_results=5)
+            if isinstance(results, dict) and results.get("error"):
+                self.log_execution("error", {
+                    "step": "web_search",
+                    "query": query,
+                    "error": results.get("error"),
+                    "message": results.get("message"),
+                })
+                return {"error": results}
             
             for result in results:
                 # Scrape event details
@@ -208,7 +265,7 @@ Return ONLY valid JSON."""
         
         return unique_events
     
-    async def _find_government_schemes(self, craft_type: str, location: Dict) -> List[Dict]:
+    async def _find_government_schemes(self, craft_type: str, location: Dict) -> List[Dict] | Dict:
         """Find government schemes for artisans"""
         self.log_execution("finding_schemes", {"craft": craft_type})
         
@@ -223,6 +280,14 @@ Return ONLY valid JSON."""
         
         for query in queries:
             results = await self.scraper.search(query, region="in", num_results=3)
+            if isinstance(results, dict) and results.get("error"):
+                self.log_execution("error", {
+                    "step": "web_search",
+                    "query": query,
+                    "error": results.get("error"),
+                    "message": results.get("message"),
+                })
+                return {"error": results}
             
             for result in results[:2]:
                 content = await self.scraper.scrape_page(result['url'])
@@ -267,7 +332,7 @@ Return ONLY valid JSON."""
         unique_schemes = self._deduplicate_schemes(schemes)
         return unique_schemes[:5]
     
-    async def _find_workshops(self, craft_type: str, location: Dict) -> List[Dict]:
+    async def _find_workshops(self, craft_type: str, location: Dict) -> List[Dict] | Dict:
         """Find workshop and teaching opportunities"""
         self.log_execution("finding_workshops", {"craft": craft_type})
         
@@ -282,6 +347,14 @@ Return ONLY valid JSON."""
         
         for query in queries:
             results = await self.scraper.search(query, region="in", num_results=3)
+            if isinstance(results, dict) and results.get("error"):
+                self.log_execution("error", {
+                    "step": "web_search",
+                    "query": query,
+                    "error": results.get("error"),
+                    "message": results.get("message"),
+                })
+                return {"error": results}
             
             for result in results[:2]:
                 content = await self.scraper.scrape_page(result['url'])

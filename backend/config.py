@@ -20,8 +20,16 @@ class Settings(BaseSettings):
     llm_provider: str = "groq"  # Options: "groq" (primary), "ollama" (fallback)
     groq_api_key: Optional[str] = None
 
-    # Ollama Configuration
-    ollama_base_url: str = "http://localhost:11434"
+    # Ollama Configuration (legacy local dev - leave empty for cloud-only)
+    ollama_base_url: str = ""
+
+    # Cloud LLM Configuration
+    openrouter_api_key: Optional[str] = None
+    openrouter_base_url: str = "https://openrouter.ai/api/v1"
+    openrouter_reasoning_model: str = "openai/gpt-4o-mini"
+    openrouter_fast_model: str = "openai/gpt-4o-mini"
+    gemini_api_key: Optional[str] = None
+    gemini_model: str = "gemini-1.5-flash"
 
     # Model Configuration
     embedding_model: str = EMBEDDING_MODEL_DEFAULT
@@ -40,8 +48,20 @@ class Settings(BaseSettings):
     # Logging
     log_level: str = LOG_LEVEL_DEFAULT
 
+    # Environment metadata
+    environment: str = "development"
+    commit_sha: str = "unknown"
+
     # Firebase (optional)
     firebase_credentials_path: Optional[str] = None
+
+    # Supabase (optional)
+    supabase_url: Optional[str] = None
+    supabase_key: Optional[str] = None
+    supabase_jwt_secret: Optional[str] = None
+
+    # Redis configuration
+    redis_url: str = "redis://localhost:6379"
 
     # Backend URL (for frontend)
     backend_url: str = "http://localhost:8000"
@@ -66,6 +86,12 @@ env_overrides = {
     "TAVILY_API_KEY": "tavily_api_key",
     "SERPAPI_KEY": "serpapi_key",
     "OLLAMA_BASE_URL": "ollama_base_url",
+    "OPENROUTER_API_KEY": "openrouter_api_key",
+    "OPENROUTER_BASE_URL": "openrouter_base_url",
+    "OPENROUTER_REASONING_MODEL": "openrouter_reasoning_model",
+    "OPENROUTER_FAST_MODEL": "openrouter_fast_model",
+    "GEMINI_API_KEY": "gemini_api_key",
+    "GEMINI_MODEL": "gemini_model",
     "CHROMA_DB_PATH": "chroma_db_path",
     "LOG_LEVEL": "log_level",
     "EMBEDDING_MODEL": "embedding_model",
@@ -73,6 +99,12 @@ env_overrides = {
     "FAST_MODEL": "fast_model",
     "BACKEND_URL": "backend_url",
     "CORS_ORIGINS": "cors_origins",
+    "ENVIRONMENT": "environment",
+    "COMMIT_SHA": "commit_sha",
+    "SUPABASE_URL": "supabase_url",
+    "SUPABASE_KEY": "supabase_key",
+    "SUPABASE_JWT_SECRET": "supabase_jwt_secret",
+    "REDIS_URL": "redis_url",
 }
 
 for env_var, setting_attr in env_overrides.items():

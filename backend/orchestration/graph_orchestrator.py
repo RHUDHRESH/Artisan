@@ -4,6 +4,12 @@ Uses LangGraph for complex agent workflows and state management
 """
 from typing import Dict, List, Optional, Any, Annotated, TypedDict, Sequence
 from langgraph.graph import StateGraph, END
+import langchain_core.tools.base as lc_tools
+
+# langgraph expects this constant on newer langchain-core builds; provide a fallback for older versions
+if not hasattr(lc_tools, "TOOL_MESSAGE_BLOCK_TYPES"):
+    lc_tools.TOOL_MESSAGE_BLOCK_TYPES = ()
+
 from langgraph.prebuilt import ToolNode
 from langchain_core.messages import BaseMessage, HumanMessage, AIMessage, SystemMessage
 from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder

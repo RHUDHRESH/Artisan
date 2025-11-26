@@ -1,0 +1,2 @@
+2025-11-24T00:48:24.156715Z [info     ] request_completed              duration_seconds=0.0 endpoint=/health method=GET request_id=e8fbaa08-1fdb-45d1-a6ad-d918ed80e42a request_size_bytes=0 response_size_bytes=79 status=200
+INFO:     127.0.0.1:63863 - "GET /health HTTP/1.1" 200 OK

@@ -2,7 +2,8 @@
 Dual Model Router - Enhanced routing logic for 4B vs 1B model selection
 """
 from typing import Dict, Optional
-from backend.core.ollama_client import OllamaClient
+
+from backend.config import settings
 from loguru import logger
 
 
@@ -12,8 +13,8 @@ class DualModelRouter:
     based on query complexity and task type
     """
     
-    def __init__(self, ollama_client: OllamaClient):
-        self.ollama = ollama_client
+    def __init__(self, llm_client):
+        self.llm = llm_client
     
     async def route_query(
         self,
@@ -36,9 +37,9 @@ class DualModelRouter:
         if task_type:
             task_type_lower = task_type.lower()
             if "complex" in task_type_lower or "reasoning" in task_type_lower or "analysis" in task_type_lower:
-                return OllamaClient.REASONING_MODEL
+                return settings.reasoning_model
             elif "simple" in task_type_lower or "fast" in task_type_lower or "classify" in task_type_lower:
-                return OllamaClient.FAST_MODEL
+                return settings.fast_model
         
         # Classify query complexity
         complexity_score = await self._assess_complexity(query)
@@ -46,10 +47,10 @@ class DualModelRouter:
         # Use 4B for complex queries, 1B for simple ones
         if complexity_score > 0.6:
             logger.debug(f"Routing to 4B (complexity: {complexity_score:.2f})")
-            return OllamaClient.REASONING_MODEL
+            return settings.reasoning_model
         else:
             logger.debug(f"Routing to 1B (complexity: {complexity_score:.2f})")
-            return OllamaClient.FAST_MODEL
+            return settings.fast_model
     
     async def _assess_complexity(self, query: str) -> float:
         """
@@ -105,13 +106,13 @@ class DualModelRouter:
         """
         model = await self.route_query(query, context, task_type)
         
-        if model == OllamaClient.REASONING_MODEL:
-            response = await self.ollama.reasoning_task(
+        if model == settings.reasoning_model:
+            response = await self.llm.reasoning_task(
                 prompt=query,
                 system=system_prompt
             )
         else:
-            response = await self.ollama.fast_task(
+            response = await self.llm.fast_task(
                 prompt=query,
                 system=system_prompt
             )

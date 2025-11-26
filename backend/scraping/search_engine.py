@@ -1,7 +1,7 @@
 """
 Search Engine - SerpAPI wrapper for web search
 """
-from typing import List, Dict
+from typing import Any, Dict, List, Union
 import aiohttp
 import os
 from loguru import logger
@@ -11,6 +11,9 @@ try:
     from backend.config import settings
 except ImportError:
     settings = None
+
+
+SearchResult = Union[List[Dict[str, Any]], Dict[str, Any]]
 
 
 class SearchEngine:
@@ -44,7 +47,7 @@ class SearchEngine:
         region: str = "in",
         num_results: int = 10,
         language: str = "en"
-    ) -> List[Dict]:
+    ) -> SearchResult:
         """
         Search the web using SerpAPI
         
@@ -58,8 +61,14 @@ class SearchEngine:
             List of search results
         """
         if not self.api_key:
-            logger.error("Cannot search: SERPAPI_KEY not configured")
-            return []
+            message = "SERPAPI_KEY not configured. Add SERPAPI_KEY to .env and restart the backend."
+            logger.error(message)
+            return {
+                "error": "missing_api_key",
+                "message": message,
+                "provider": "serpapi",
+                "action_required": True,
+            }
         
         logger.info(f"Searching: '{query}' (region={region}, n={num_results})")
         
@@ -80,13 +89,19 @@ class SearchEngine:
             async with self.session.get(url, params=params, timeout=30) as response:
                 if response.status != 200:
                     logger.error(f"SerpAPI error: {response.status}")
-                    return []
-                
+                    return {
+                        "error": "serpapi_http_error",
+                        "message": f"SerpAPI returned HTTP {response.status}",
+                        "provider": "serpapi",
+                        "action_required": False,
+                        "details": {"status": response.status},
+                    }
+
                 data = await response.json()
-                
+
                 # Extract organic results
                 results = data.get("organic_results", [])
-                
+
                 # Format results
                 formatted_results = []
                 for result in results:
@@ -97,7 +112,7 @@ class SearchEngine:
                         "position": result.get("position", 0),
                         "date": result.get("date", "")
                     })
-                
+
                 # Log search
                 self.search_logs.append({
                     "query": query,
@@ -105,13 +120,19 @@ class SearchEngine:
                     "results_count": len(formatted_results),
                     "timestamp": datetime.now().isoformat()
                 })
-                
+
                 logger.success(f"Found {len(formatted_results)} results")
                 return formatted_results
         
         except Exception as e:
             logger.error(f"Search error: {e}")
-            return []
+            return {
+                "error": "serpapi_client_error",
+                "message": f"SerpAPI request failed: {type(e).__name__}",
+                "provider": "serpapi",
+                "action_required": False,
+                "details": {"error": str(e)},
+            }
     
     def _get_location_string(self, region_code: str) -> str:
         """Get location string for SerpAPI"""

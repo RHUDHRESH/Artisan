@@ -2,7 +2,7 @@
 Abstract base class for all agents
 """
 from abc import ABC, abstractmethod
-from typing import Dict, List, Union
+from typing import Any, Dict, List, Optional, Union
 from backend.core.ollama_client import OllamaClient
 from backend.core.vector_store import ArtisanVectorStore
 from loguru import logger
@@ -19,13 +19,27 @@ class BaseAgent(ABC):
         self,
         name: str,
         description: str,
-        llm_client: Union[OllamaClient, any],  # Can be OllamaClient or LLMManager
-        vector_store: ArtisanVectorStore
+        llm_client: Optional[Union[OllamaClient, Any]] = None,  # Can be OllamaClient or LLMManager
+        vector_store: Optional[ArtisanVectorStore] = None,
+        ollama_client: Optional[Union[OllamaClient, Any]] = None,
     ):
+        resolved_llm = llm_client or ollama_client
+
+        if llm_client is not None and ollama_client is not None and llm_client is not ollama_client:
+            logger.warning(
+                f"Both 'llm_client' and 'ollama_client' provided to {name}. Defaulting to 'llm_client'."
+            )
+
+        if resolved_llm is None:
+            raise ValueError("BaseAgent requires either 'llm_client' or 'ollama_client'")
+
+        if vector_store is None:
+            raise ValueError("BaseAgent requires a valid 'vector_store' instance")
+
         self.name = name
         self.description = description
-        self.llm = llm_client  # Use generic name 'llm' instead of 'ollama'
-        self.ollama = llm_client  # Keep backward compatibility
+        self.llm = resolved_llm  # Use generic name 'llm' instead of 'ollama'
+        self.ollama = resolved_llm  # Keep backward compatibility
         self.vector_store = vector_store
         self.execution_logs: List[Dict] = []
         # Shared tool registry for the whole agent team

@@ -6,10 +6,22 @@ Centralized configuration for models, timeouts, limits, and other magic values
 # ============================================================================
 # LLM MODEL CONFIGURATION
 # ============================================================================
-EMBEDDING_MODEL_DEFAULT = "nomic-embed-text:latest"
-REASONING_MODEL_DEFAULT = "gemma3:4b"  # Used for complex reasoning tasks
-FAST_MODEL_DEFAULT = "gemma3:1b"       # Used for quick/simple classification
-CHAT_MODEL = "gemma3:4b"
+EMBEDDING_MODEL_DEFAULT = "nomic-ai/nomic-embed-text-v1.5"
+REASONING_MODEL_DEFAULT = "llama-3.3-70b-versatile"  # Groq default for complex reasoning
+FAST_MODEL_DEFAULT = "llama-3.1-8b-instant"          # Groq default for fast responses
+CHAT_MODEL = REASONING_MODEL_DEFAULT
+
+# Cloud fallbacks
+OPENROUTER_BASE_URL_DEFAULT = "https://openrouter.ai/api/v1"
+OPENROUTER_REASONING_MODEL_DEFAULT = "openai/gpt-4o-mini"
+OPENROUTER_FAST_MODEL_DEFAULT = "openai/gpt-4o-mini"
+OPENROUTER_EMBEDDING_MODEL_DEFAULT = "text-embedding-3-large"
+GEMINI_MODEL_DEFAULT = "gemini-1.5-flash"
+
+# Legacy local defaults (kept for compatibility)
+OLLAMA_REASONING_MODEL_DEFAULT = "gemma3:4b"
+OLLAMA_FAST_MODEL_DEFAULT = "gemma3:1b"
+OLLAMA_EMBEDDING_MODEL_DEFAULT = "nomic-embed-text:latest"
 
 # ============================================================================
 # API TIMEOUTS & RATE LIMITS (seconds)

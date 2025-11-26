@@ -59,9 +59,38 @@ class GrowthMarketerAgent(BaseAgent):
         craft_type = user_profile.get("craft_type", "")
         specialization = user_profile.get("specialization", "")
         current_products = user_profile.get("current_products", [])
+
+        # Fail fast when no web search provider is configured
+        if not getattr(self.scraper, "tavily_api_key", None) and not getattr(self.scraper, "serpapi_key", None):
+            message = "Web search unavailable: add TAVILY_API_KEY (preferred) or SERPAPI_KEY to .env and restart the backend."
+            self.log_execution("error", {"message": message, "provider": None})
+            return {
+                "trends": [],
+                "product_innovations": [],
+                "pricing_insights": {},
+                "roi_projections": [],
+                "marketing_channels": [],
+                "error": {
+                    "error": "missing_api_key",
+                    "message": message,
+                    "provider": None,
+                    "action_required": True,
+                },
+                "execution_logs": self.get_logs(),
+            }
         
         # Step 1: Research trending products in this craft niche
         trends = await self._research_trends(craft_type, specialization)
+        if isinstance(trends, dict) and trends.get("error"):
+            return {
+                "trends": [],
+                "product_innovations": [],
+                "pricing_insights": {},
+                "roi_projections": [],
+                "marketing_channels": [],
+                "error": trends["error"],
+                "execution_logs": self.get_logs(),
+            }
         
         # Step 2: Generate product innovation ideas
         innovations = await self._generate_innovations(
@@ -94,7 +123,7 @@ class GrowthMarketerAgent(BaseAgent):
             "execution_logs": self.get_logs()
         }
     
-    async def _research_trends(self, craft_type: str, specialization: str) -> List[Dict]:
+    async def _research_trends(self, craft_type: str, specialization: str) -> List[Dict] | Dict:
         """
         Research current trends in the craft market
         """
@@ -113,6 +142,14 @@ class GrowthMarketerAgent(BaseAgent):
         
         for query in queries:
             results = await self.scraper.search(query, region="in", num_results=5)
+            if isinstance(results, dict) and results.get("error"):
+                self.log_execution("error", {
+                    "step": "web_search",
+                    "query": query,
+                    "error": results.get("error"),
+                    "message": results.get("message"),
+                })
+                return {"error": results}
             
             # Analyze each result for trend information
             for result in results[:3]:  # Top 3 per query
@@ -277,6 +314,18 @@ Return ONLY valid JSON array."""
         
         for query in queries:
             results = await self.scraper.search(query, region="in", num_results=3)
+            if isinstance(results, dict) and results.get("error"):
+                self.log_execution("error", {
+                    "step": "web_search",
+                    "query": query,
+                    "error": results.get("error"),
+                    "message": results.get("message"),
+                })
+                return {
+                    "current_market_avg": "Data unavailable",
+                    "recommendation": results.get("message", "Web search unavailable"),
+                    "error": results,
+                }
             
             for result in results[:2]:
                 content = await self.scraper.scrape_page(result['url'])

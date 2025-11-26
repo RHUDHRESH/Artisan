@@ -15,11 +15,22 @@ Complete guide for deploying Artisan Hub to production environments.
 ## Prerequisites
 
 ### Required Accounts & API Keys
-- **GROQ API Key** (recommended) - Get from https://console.groq.com
-- **Tavily API Key** (optional) - For web search: https://tavily.com
-- **Supabase Account** (optional) - For cloud database: https://supabase.com
-- **Vercel Account** - For frontend deployment: https://vercel.com
-- **Google Cloud Project** - For backend deployment: https://cloud.google.com
+- **Groq** – https://console.groq.com (create a key with `chat.completions` scope)
+- **Supabase** – https://supabase.com (project + service role key)
+- **Vercel** – https://vercel.com (connect your Git repo)
+- **Google Cloud** – https://cloud.google.com (enable Cloud Run + Cloud Build)
+- **Tavily** (optional) – https://tavily.com for richer supplier search
+
+> ✅ Tip: sign into all four dashboards once before running the CLIs so auth tokens are cached locally.
+
+### Login Checklist
+
+| Service | CLI Command | Purpose |
+|---------|-------------|---------|
+| Groq | _n/A_ | Copy the key into `.env` + Secret Manager |
+| Supabase | `npx supabase login` (optional) | Seed tables or run SQL migrations |
+| Vercel | `vercel login` | Authorize repo + import project |
+| Google Cloud | `gcloud auth login` | Also run `gcloud auth configure-docker` |
 
 ### Required Tools
 - Docker & Docker Compose (for local/Docker deployment)
@@ -138,6 +149,7 @@ docker-compose up -d --build backend
    NEXT_PUBLIC_API_URL=https://your-backend-url.com
    NEXT_PUBLIC_WS_URL=wss://your-backend-url.com
    ```
+   Frontend does **not** need Supabase credentials—the backend proxies every data call—so only the backend environments need `SUPABASE_URL`/`SUPABASE_KEY`.
 
 4. **Deploy**
    - Click "Deploy"
@@ -211,12 +223,16 @@ gcloud run deploy artisan-backend \
 # Store secrets in Secret Manager
 echo "your-groq-api-key" | gcloud secrets create groq-api-key --data-file=-
 echo "your-tavily-api-key" | gcloud secrets create tavily-api-key --data-file=-
+echo "https://your-project.supabase.co" | gcloud secrets create supabase-url --data-file=-
+echo "your-supabase-service-role-key" | gcloud secrets create supabase-key --data-file=-
 
 # Deploy with secrets
 gcloud run deploy artisan-backend \
   --image gcr.io/YOUR_PROJECT_ID/artisan-backend \
   --update-secrets=GROQ_API_KEY=groq-api-key:latest \
   --update-secrets=TAVILY_API_KEY=tavily-api-key:latest \
+  --update-secrets=SUPABASE_URL=supabase-url:latest \
+  --update-secrets=SUPABASE_KEY=supabase-key:latest \
   ... (other flags)
 ```
 
@@ -261,6 +277,42 @@ git push origin main
 ---
 
 ## Post-Deployment
+
+### Supabase Schema Setup
+
+Create the tables below (can be done via Supabase SQL editor):
+
+```sql
+create table if not exists user_profiles (
+  user_id text primary key,
+  context jsonb default '{}'::jsonb,
+  updated_at timestamptz default now()
+);
+
+create table if not exists search_results (
+  id uuid primary key default gen_random_uuid(),
+  user_id text not null references user_profiles(user_id) on delete cascade,
+  search_type text not null,
+  results jsonb not null,
+  timestamp timestamptz default now()
+);
+
+create table if not exists suppliers (
+  id uuid primary key default gen_random_uuid(),
+  name text,
+  location jsonb,
+  contact jsonb,
+  metadata jsonb,
+  updated_at timestamptz default now()
+);
+```
+
+Optional heartbeat table for the Flight Check probe:
+
+```sql
+create table if not exists _health (id int primary key default 1);
+insert into _health(id) values (1) on conflict do nothing;
+```
 
 ### 1. Update Frontend Environment
 After deploying backend, update frontend environment variables in Vercel:

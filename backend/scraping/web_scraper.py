@@ -7,7 +7,7 @@ CRITICAL REQUIREMENTS:
 - NO database lookups
 - Full audit logs required
 """
-from typing import Dict, List, Optional
+from typing import Any, Dict, List, Optional, Union
 import aiohttp
 import asyncio
 from bs4 import BeautifulSoup
@@ -34,6 +34,9 @@ try:
 except ImportError:
     logger.debug("WebSocket module not available - real-time updates disabled")
     HAS_WEBSOCKET = False
+
+
+SearchResult = Union[List[Dict[str, Any]], Dict[str, Any]]
 
 
 class WebScraperService:
@@ -63,7 +66,7 @@ class WebScraperService:
         query: str,
         region: str = "in",
         num_results: int = 10
-    ) -> List[Dict]:
+    ) -> SearchResult:
         """
         Search web using Tavily API
         
@@ -76,19 +79,39 @@ class WebScraperService:
             List of search results
         """
         # Prefer Tavily, fallback to SerpAPI if available
+        if not self.tavily_api_key and not self.serpapi_key:
+            message = "No Tavily or SerpAPI key configured. Add TAVILY_API_KEY (preferred) or SERPAPI_KEY to .env and restart the backend."
+            logger.error(message)
+            failure = {
+                "error": "missing_api_key",
+                "message": message,
+                "provider": None,
+                "action_required": True,
+                "impacts": ["Supplier search", "Growth marketer", "Event scout"],
+            }
+            self.search_logs.append(
+                {
+                    "query": query,
+                    "region": region,
+                    "results_count": 0,
+                    "timestamp": self._get_timestamp(),
+                    "provider": None,
+                    "status": "error",
+                    "error": "missing_api_key",
+                }
+            )
+            return failure
+
         if self.tavily_api_key:
             return await self._search_tavily(query, num_results)
         elif self.serpapi_key:
             return await self._search_serpapi(query, region, num_results)
-        else:
-            logger.error("Cannot search: No API key configured (need TAVILY_API_KEY or SERPAPI_KEY)")
-            return []
     
     async def _search_tavily(
         self,
         query: str,
         num_results: int = 10
-    ) -> List[Dict]:
+    ) -> SearchResult:
         """Search using Tavily API"""
         logger.info(f"Searching with Tavily: '{query}' (n={num_results})")
         
@@ -113,13 +136,30 @@ class WebScraperService:
                 if response.status != 200:
                     error_text = await response.text()
                     logger.error(f"Tavily API error: {response.status} - {error_text}")
-                    return []
-                
+                    failure = {
+                        "error": "tavily_http_error",
+                        "message": f"Tavily returned HTTP {response.status}",
+                        "provider": "tavily",
+                        "action_required": False,
+                        "details": {"status": response.status, "body": error_text[:200]},
+                    }
+                    self.search_logs.append(
+                        {
+                            "query": query,
+                            "results_count": 0,
+                            "timestamp": self._get_timestamp(),
+                            "provider": "tavily",
+                            "status": "error",
+                            "error": failure["error"],
+                        }
+                    )
+                    return failure
+
                 data = await response.json()
-                
+
                 # Extract results
                 results = data.get("results", [])
-                
+
                 # Format results
                 formatted_results = []
                 for result in results:
@@ -129,13 +169,14 @@ class WebScraperService:
                         "snippet": result.get("content", "")[:SCRAPER_SNIPPET_LENGTH],
                         "position": len(formatted_results) + 1
                     })
-                
+
                 # Log search
                 log_entry = {
                     "query": query,
                     "results_count": len(formatted_results),
                     "timestamp": self._get_timestamp(),
-                    "provider": "tavily"
+                    "provider": "tavily",
+                    "status": "ok",
                 }
                 self.search_logs.append(log_entry)
 
@@ -158,14 +199,31 @@ class WebScraperService:
 
         except (aiohttp.ClientError, asyncio.TimeoutError, ValueError) as e:
             logger.error(f"Tavily search error: {type(e).__name__}: {e}")
-            return []
+            failure = {
+                "error": "tavily_client_error",
+                "message": f"Tavily request failed: {type(e).__name__}",
+                "provider": "tavily",
+                "action_required": False,
+                "details": {"error": str(e)},
+            }
+            self.search_logs.append(
+                {
+                    "query": query,
+                    "results_count": 0,
+                    "timestamp": self._get_timestamp(),
+                    "provider": "tavily",
+                    "status": "error",
+                    "error": failure["error"],
+                }
+            )
+            return failure
     
     async def _search_serpapi(
         self,
         query: str,
         region: str = "in",
         num_results: int = 10
-    ) -> List[Dict]:
+    ) -> SearchResult:
         """Fallback: Search using SerpAPI"""
         logger.info(f"Searching with SerpAPI: '{query}' (region={region}, n={num_results})")
         
@@ -186,13 +244,31 @@ class WebScraperService:
             async with self.session.get(url, params=params, timeout=TAVILY_API_TIMEOUT) as response:
                 if response.status != 200:
                     logger.error(f"SerpAPI error: {response.status}")
-                    return []
-                
+                    failure = {
+                        "error": "serpapi_http_error",
+                        "message": f"SerpAPI returned HTTP {response.status}",
+                        "provider": "serpapi",
+                        "action_required": False,
+                        "details": {"status": response.status},
+                    }
+                    self.search_logs.append(
+                        {
+                            "query": query,
+                            "region": region,
+                            "results_count": 0,
+                            "timestamp": self._get_timestamp(),
+                            "provider": "serpapi",
+                            "status": "error",
+                            "error": failure["error"],
+                        }
+                    )
+                    return failure
+
                 data = await response.json()
-                
+
                 # Extract organic results
                 results = data.get("organic_results", [])
-                
+
                 # Format results
                 formatted_results = []
                 for result in results:
@@ -202,14 +278,15 @@ class WebScraperService:
                         "snippet": result.get("snippet", ""),
                         "position": result.get("position", 0)
                     })
-                
+
                 # Log search
                 log_entry = {
                     "query": query,
                     "region": region,
                     "results_count": len(formatted_results),
                     "timestamp": self._get_timestamp(),
-                    "provider": "serpapi"
+                    "provider": "serpapi",
+                    "status": "ok",
                 }
                 self.search_logs.append(log_entry)
 
@@ -232,7 +309,25 @@ class WebScraperService:
 
         except (aiohttp.ClientError, asyncio.TimeoutError) as e:
             logger.error(f"SerpAPI search error: {type(e).__name__}: {e}")
-            return []
+            failure = {
+                "error": "serpapi_client_error",
+                "message": f"SerpAPI request failed: {type(e).__name__}",
+                "provider": "serpapi",
+                "action_required": False,
+                "details": {"error": str(e)},
+            }
+            self.search_logs.append(
+                {
+                    "query": query,
+                    "region": region,
+                    "results_count": 0,
+                    "timestamp": self._get_timestamp(),
+                    "provider": "serpapi",
+                    "status": "error",
+                    "error": failure["error"],
+                }
+            )
+            return failure
     
     async def scrape_page(self, url: str, use_playwright: bool = False) -> str:
         """

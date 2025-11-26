@@ -49,6 +49,15 @@ if not exist .venv (
 call .venv\Scripts\activate
 echo.
 
+REM Warn if Groq/Supabase envs are missing
+if "%GROQ_API_KEY%"=="" (
+    echo WARNING: GROQ_API_KEY is not set. Cloud inference via Groq will fail.
+)
+if "%SUPABASE_URL%"=="" (
+    echo INFO: SUPABASE_URL not configured. Backend will fall back to the local JSON store.
+)
+echo.
+
 REM Step 3: Install Dependencies
 echo [3/5] Checking dependencies...
 python -c "import fastapi" >nul 2>&1
@@ -69,23 +78,21 @@ if errorlevel 1 (
 )
 echo.
 
-REM Step 4: Check Ollama
-echo [4/5] Checking Ollama...
-powershell -NoProfile -Command "try { (Invoke-WebRequest -UseBasicParsing http://localhost:11434/api/tags -TimeoutSec 2).StatusCode } catch { 0 }" >nul 2>&1
-if errorlevel 1 (
-    echo WARNING: Ollama doesn't appear to be running.
-    echo.
-    echo Please start Ollama:
-    echo   1. Open a new terminal
-    echo   2. Run: ollama serve
-    echo.
-    echo Or install Ollama from: https://ollama.com
-    echo Then install models: ollama pull gemma3:4b gemma3:1b gemma3:embed
-    echo.
-    echo Continuing anyway... (backend will work but AI features won't)
-    timeout /t 3 >nul
+REM Step 4: Check cloud LLM keys
+echo [4/5] Checking LLM API keys...
+if "%GROQ_API_KEY%"=="" (
+    if "%OPENROUTER_API_KEY%"=="" (
+        if "%GEMINI_API_KEY%"=="" (
+            echo WARNING: No LLM API key found. Set GROQ_API_KEY or OPENROUTER_API_KEY or GEMINI_API_KEY.
+            echo AI features will fail until a cloud key is provided.
+        ) else (
+            echo Using Gemini fallback.
+        )
+    ) else (
+        echo Using OpenRouter fallback (no GROQ_API_KEY found).
+    )
 ) else (
-    echo Ollama is running!
+    echo Using Groq as primary LLM provider.
 )
 echo.
 

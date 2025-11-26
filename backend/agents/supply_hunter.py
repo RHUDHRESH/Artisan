@@ -77,8 +77,24 @@ class SupplyHunterAgent(BaseAgent):
                 craft_type=craft_type,
                 location=location
             )
-            
-            search_logs.extend(india_results["search_logs"])
+            search_logs.extend(india_results.get("search_logs", []))
+
+            # If search failed (e.g., missing API key), stop early with clear guidance
+            if india_results.get("error"):
+                error_info = india_results["error"]
+                self.log_execution("error", {
+                    "message": error_info.get("message", "Web search unavailable"),
+                    "provider": error_info.get("provider"),
+                })
+                return {
+                    "suppliers": [],
+                    "search_logs": search_logs,
+                    "total_suppliers_found": 0,
+                    "india_suppliers": 0,
+                    "global_suppliers": 0,
+                    "error": error_info,
+                    "execution_logs": self.get_logs()
+                }
             
             # Step 2: If insufficient results, search regionally
             if len(india_results["suppliers"]) < 3:
@@ -157,6 +173,19 @@ class SupplyHunterAgent(BaseAgent):
                 region="in",  # India
                 num_results=10
             )
+
+            if isinstance(results, dict) and results.get("error"):
+                self.log_execution("error", {
+                    "step": "web_search",
+                    "query": query,
+                    "error": results.get("error"),
+                    "message": results.get("message"),
+                })
+                return {
+                    "suppliers": [],
+                    "search_logs": search_logs,
+                    "error": results,
+                }
 
             # Log search results
             self.log_execution("search_results", {"results_count": len(results), "query": query})

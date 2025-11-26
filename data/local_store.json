@@ -1,0 +1,37 @@
+{
+  "suppliers": {
+    "anonymous": {
+      "updated_at": "2025-11-24T10:18:50.649084",
+      "items": [],
+      "context": {
+        "craft_type": "Pottery",
+        "location": {
+          "city": "5 years",
+          "state": "Rajasthan"
+        },
+        "supplies_needed": [
+          "Clay"
+        ]
+      }
+    }
+  },
+  "opportunities": {},
+  "events": {},
+  "materials": {
+    "anonymous": {
+      "updated_at": "2025-11-24T10:18:50.668681",
+      "items": [],
+      "context": {
+        "craft_type": "Pottery",
+        "location": {
+          "city": "5 years",
+          "state": "Rajasthan"
+        },
+        "supplies_needed": [
+          "Clay"
+        ]
+      }
+    }
+  },
+  "user_context": {}
+}

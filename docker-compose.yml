@@ -20,9 +20,9 @@ services:
       - OLLAMA_BASE_URL=${OLLAMA_BASE_URL:-http://ollama:11434}
 
       # Model Configuration
-      - EMBEDDING_MODEL=${EMBEDDING_MODEL:-nomic-embed-text:latest}
-      - REASONING_MODEL=${REASONING_MODEL:-gemma3:4b}
-      - FAST_MODEL=${FAST_MODEL:-gemma3:1b}
+      - EMBEDDING_MODEL=${EMBEDDING_MODEL:-nomic-ai/nomic-embed-text-v1.5}
+      - REASONING_MODEL=${REASONING_MODEL:-llama-3.3-70b-versatile}
+      - FAST_MODEL=${FAST_MODEL:-llama-3.1-8b-instant}
 
       # Search APIs
       - TAVILY_API_KEY=${TAVILY_API_KEY}
