@@ -1160,9 +1160,18 @@ function AgentView({
 
 const buildGrowthAnalysisRequest = (answers: Record<string, string>) => {
   const ans = answers || {};
-  const craftType = ans.craft_type?.trim() || "pottery";
+  const craftTypeCandidate =
+    (ans.craft_type || ans.craft || "").trim() ||
+    (ans.focus || "").trim() ||
+    "pottery";
+  const specializationCandidate =
+    (ans.tradition || ans.specialization || ans.expertise || "").trim() ||
+    "handmade pottery";
+
+  const craftType =
+    craftTypeCandidate.length >= 2 ? craftTypeCandidate : "pottery";
   const specialization =
-    ans.tradition?.trim() || ans.specialization?.trim() || "handmade pottery";
+    specializationCandidate.length >= 2 ? specializationCandidate : "handmade pottery";
   const productText = (ans.products || "hand-thrown bowl").trim();
   const currentProducts = productText
     .split(",")
