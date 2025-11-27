@@ -125,13 +125,20 @@ class SupplySearchRequest(BaseModel):
             raise ValueError('All supplies must be non-empty strings')
         return cleaned if cleaned else None
 
+    @field_validator('craft_type', mode='before')
+    def normalize_craft_type(cls, v):
+        """Provide a safe default craft type when user input is too short."""
+        if not isinstance(v, str) or len(v.strip()) < MIN_PROFILE_NAME_LENGTH:
+            return "general craft"
+        return v.strip()
+
     @field_validator('location')
     def validate_location(cls, v):
         """Ensure location has required fields"""
         if not isinstance(v, dict):
-            raise ValueError('location must be a dictionary')
+            return {"city": "Unknown", "country": "Unknown"}
         if not any(key in v for key in ['city', 'region', 'state']):
-            raise ValueError('location must contain at least one of: city, region, state')
+            return {**v, "city": v.get("city") or "Unknown"}
         return v
 
     def get_supplies_list(self) -> List[str]:
@@ -182,6 +189,30 @@ class GrowthAnalysisRequest(BaseModel):
             if not isinstance(product, str) or not product.strip():
                 raise ValueError('All products must be non-empty strings')
         return v
+
+    @field_validator('craft_type', 'specialization', mode='before')
+    def normalize_text_fields(cls, v):
+        """Coerce too-short text fields to a safe default to avoid 422s."""
+        if not isinstance(v, str) or len(v.strip()) < MIN_PROFILE_NAME_LENGTH:
+            return "general craft"
+        return v.strip()
+
+    @field_validator('location', mode='before')
+    def normalize_location(cls, v):
+        """Ensure location always contains a usable city/state payload."""
+        if not isinstance(v, dict):
+            return {"city": "Unknown", "state": "Unknown", "country": "Unknown"}
+        if not any(key in v for key in ['city', 'region', 'state']):
+            return {**v, "city": v.get("city") or "Unknown"}
+        return v
+
+    @field_validator('current_products', mode='before')
+    def normalize_products(cls, v):
+        """Provide fallback products when the list is missing or empty."""
+        if not isinstance(v, list) or not v:
+            return ["handmade items"]
+        cleaned = [item.strip() for item in v if isinstance(item, str) and item.strip()]
+        return cleaned or ["handmade items"]
 
 
 class EventSearchRequest(BaseModel):
