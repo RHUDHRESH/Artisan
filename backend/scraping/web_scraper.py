@@ -65,47 +65,86 @@ class WebScraperService:
         self,
         query: str,
         region: str = "in",
-        num_results: int = 10
+        num_results: int = 10,
+        sources: List[str] = None,
+        deep_search: bool = False
     ) -> SearchResult:
         """
-        Search web using Tavily API
-        
+        Enhanced search using multiple engines with failover
+
         Args:
             query: Search query
-            region: Region code (in=India, us=USA, etc.) - used for context
+            region: Region code (in=India, us=USA, etc.)
             num_results: Number of results to return
-        
-        Returns:
-            List of search results
-        """
-        # Prefer Tavily, fallback to SerpAPI if available
-        if not self.tavily_api_key and not self.serpapi_key:
-            message = "No Tavily or SerpAPI key configured. Add TAVILY_API_KEY (preferred) or SERPAPI_KEY to .env and restart the backend."
-            logger.error(message)
-            failure = {
-                "error": "missing_api_key",
-                "message": message,
-                "provider": None,
-                "action_required": True,
-                "impacts": ["Supplier search", "Growth marketer", "Event scout"],
-            }
-            self.search_logs.append(
-                {
-                    "query": query,
-                    "region": region,
-                    "results_count": 0,
-                    "timestamp": self._get_timestamp(),
-                    "provider": None,
-                    "status": "error",
-                    "error": "missing_api_key",
-                }
-            )
-            return failure
+            sources: List of search sources to try ['tavily', 'serpapi', 'local']
+            deep_search: Whether to do exhaustive search across multiple queries
 
-        if self.tavily_api_key:
-            return await self._search_tavily(query, num_results)
-        elif self.serpapi_key:
-            return await self._search_serpapi(query, region, num_results)
+        Returns:
+            Enhanced list of search results with metadata
+        """
+        all_results = []
+        search_metadata = {
+            "query": query,
+            "region": region,
+            "requested_results": num_results,
+            "sources_tried": [],
+            "total_results": 0,
+            "timestamp": self._get_timestamp()
+        }
+
+        # Default sources if not specified
+        if sources is None:
+            sources = ['tavily', 'serpapi', 'local'] if deep_search else ['tavily', 'serpapi']
+
+        # Generate multiple query variations for deeper search
+        queries = [query]
+        if deep_search:
+            queries.extend(self._generate_query_variations(query, region))
+
+        logger.info(f"Enhanced search: {query} ({len(queries)} queries, sources: {sources})")
+
+        for search_query in queries:
+            for source in sources:
+                if source == 'tavily' and self.tavily_api_key:
+                    results = await self._search_tavily(search_query, num_results)
+                    if not isinstance(results, dict) or not results.get("error"):
+                        search_metadata["sources_tried"].append(f"tavily:{search_query}")
+                        if isinstance(results, list):
+                            all_results.extend(results)
+
+                elif source == 'serpapi' and self.serpapi_key:
+                    results = await self._search_serpapi(search_query, region, num_results)
+                    if not isinstance(results, dict) or not results.get("error"):
+                        search_metadata["sources_tried"].append(f"serpapi:{search_query}")
+                        if isinstance(results, list):
+                            all_results.extend(results)
+
+                elif source == 'local':
+                    results = await self._search_local_databases(search_query, region)
+                    search_metadata["sources_tried"].append(f"local:{search_query}")
+                    if isinstance(results, list):
+                        all_results.extend(results)
+
+                # Stop if we have enough results
+                if len(all_results) >= num_results and not deep_search:
+                    break
+            if len(all_results) >= num_results and not deep_search:
+                break
+
+        # Deduplicate and rank results
+        unique_results = self._deduplicate_search_results(all_results)
+
+        search_metadata["total_results"] = len(unique_results)
+        search_metadata["effective_results"] = min(len(unique_results), num_results)
+
+        # Limit results and add metadata
+        final_results = unique_results[:num_results]
+        for result in final_results:
+            result["_search_metadata"] = search_metadata
+
+        logger.success(f"Enhanced search found {len(final_results)} results from {len(search_metadata['sources_tried'])} sources")
+
+        return final_results
     
     async def _search_tavily(
         self,
@@ -415,14 +454,91 @@ class WebScraperService:
                 await browser.close()
                 raise RuntimeError(f"Failed to scrape {url} with Playwright") from e
     
+    def _generate_query_variations(self, query: str, region: str) -> List[str]:
+        """Generate multiple query variations for comprehensive search"""
+        variations = []
+
+        # Add region-specific variations
+        region_names = {
+            "in": ["India", "Indian", "Hindustan"],
+            "us": ["USA", "United States", "American"],
+            "uk": ["UK", "United Kingdom", "Britain"],
+            "de": ["Germany", "German"],
+            "jp": ["Japan", "Japanese"]
+        }
+
+        region_terms = region_names.get(region, [region.upper()])
+
+        # Basic variations
+        for term in region_terms[:2]:  # Limit to avoid too many
+            variations.extend([
+                f"{query} {term}",
+                f"{query} in {term}",
+                f"best {query} {term}",
+                f"{query} suppliers {term}",
+                f"buy {query} {term}"
+            ])
+
+        # Add industry-specific variations
+        industry_terms = ["wholesale", "manufacturers", "distributors", "suppliers", "vendors"]
+        for term in industry_terms[:3]:
+            variations.append(f"{query} {term}")
+
+        # Add platform variations for marketplaces
+        platform_terms = ["Etsy", "Amazon", "Flipkart", "Shopify", "marketplace"]
+        for platform in platform_terms[:2]:
+            variations.append(f"{query} on {platform}")
+
+        # Limit variations to avoid API limits
+        return variations[:5]  # Return top 5 variations
+
+    async def _search_local_databases(self, query: str, region: str) -> List[Dict]:
+        """Search local knowledge base for relevant information"""
+        local_results = []
+
+        # This could be expanded to search local databases, caches, or pre-indexed content
+        # For now, return empty - can be implemented later with actual local data
+        # Could search: cached results, local business directories, pre-scraped data, etc.
+
+        # Placeholder for future implementation
+        logger.debug(f"Local database search not implemented yet for: {query}")
+        return local_results
+
+    def _deduplicate_search_results(self, results: List[Dict]) -> List[Dict]:
+        """Remove duplicate search results based on URL similarity"""
+        seen_urls = set()
+        unique_results = []
+
+        for result in results:
+            url = result.get("url", "").lower().rstrip("/")
+
+            # Normalize URL for deduplication
+            if "http://" in url:
+                url = url.replace("http://", "https://")
+            if url.endswith("/"):
+                url = url[:-1]
+
+            # Remove common tracking parameters
+            url = url.split('?')[0]
+            url = url.split('#')[0]
+
+            if url and url not in seen_urls:
+                seen_urls.add(url)
+                unique_results.append(result)
+
+        # Sort by relevance (position if available, else keep original order)
+        unique_results.sort(key=lambda x: x.get("position", 999))
+
+        return unique_results
+
     def _get_location_string(self, region_code: str) -> str:
         """Get location string for SerpAPI"""
         return REGION_MAPPING.get(region_code, "India")
-    
+
     def _get_timestamp(self) -> str:
         """Get current timestamp"""
         return datetime.now().isoformat()
-    
+
     def get_search_logs(self) -> List[Dict]:
         """Get all search logs"""
         return self.search_logs

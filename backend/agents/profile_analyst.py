@@ -63,11 +63,52 @@ class ProfileAnalystAgent(BaseAgent):
         }
         """
         self.log_execution("start", {"input": user_profile.get("input_text", "")[:100]})
-        
+
         input_text = user_profile.get("input_text", "")
-        
-        # Step 1: Extract basic information
-        extraction_prompt = f"""Analyze this artisan's introduction and extract structured information.
+
+        # City-to-craft mapping for Rajasthan cities
+        CITY_CRAFT_MAPPING = {
+            "jaipur": "pottery",
+            "udaipur": "traditional crafts",
+            "jodhpur": "furniture",
+            "jaisalmer": "handicrafts",
+            "bikaner": "carpets",
+            "kota": "embroidery",
+            "ajmer": "traditional arts",
+            "alwar": "textiles",
+            "bharatpur": "handmade items",
+            "chittorgarh": "traditional crafts",
+            "pushkar": "traditional arts",
+            "jhunjhunu": "traditional crafts"
+        }
+
+        # Check if input is just "City CITYNAME" or similar
+        if input_text.lower().startswith("city ") and len(input_text.split()) == 2:
+            city_name = input_text.split()[1].lower()
+            if city_name in CITY_CRAFT_MAPPING:
+                # Direct mapping for location-based input
+                basic_info = {
+                    "name": "Local Artisan",
+                    "craft_type": CITY_CRAFT_MAPPING[city_name],
+                    "specialization": f"traditional {CITY_CRAFT_MAPPING[city_name]}",
+                    "location": {
+                        "city": city_name.title(),
+                        "state": "Rajasthan",
+                        "country": "India"
+                    },
+                    "experience_years": None,
+                    "learned_from": "local craft tradition",
+                    "story_elements": [f"Based in {city_name.title()}, specializes in {CITY_CRAFT_MAPPING[city_name]} craftsmanship"]
+                }
+
+                # Get default needs based on craft
+                needs_info = self._get_craft_defaults(CITY_CRAFT_MAPPING[city_name])
+                adjacencies = self._get_craft_adjacencies(CITY_CRAFT_MAPPING[city_name])
+
+        else:
+            # Standard analysis using LLM
+            # Step 1: Extract basic information
+            extraction_prompt = f"""Analyze this artisan's introduction and extract structured information.
 
 Input: "{input_text}"
 
@@ -84,28 +125,28 @@ Extract the following in JSON format:
 
 Return ONLY valid JSON, no other text."""
 
-        extraction_result = await self.ollama.reasoning_task(extraction_prompt)
-        
-        self.log_execution("extraction", {"raw_result": extraction_result})
-        
-        # Parse JSON (handle potential parsing errors)
-        try:
-            # Clean up the response (remove markdown code blocks if present)
-            if "```json" in extraction_result:
-                extraction_result = extraction_result.split("```json")[1].split("```")[0]
-            elif "```" in extraction_result:
-                extraction_result = extraction_result.split("```")[1].split("```")[0]
-            
-            basic_info = json.loads(extraction_result.strip())
-        except json.JSONDecodeError as e:
-            logger.error(f"JSON parsing error: {e}\nResponse: {extraction_result}")
-            # Fallback to simpler extraction
-            basic_info = await self._fallback_extraction(input_text)
-        
-        self.log_execution("parsed_info", basic_info)
-        
-        # Step 2: Infer needs based on craft type
-        needs_prompt = f"""Based on this craft profile, infer the artisan's needs:
+            extraction_result = await self.ollama.reasoning_task(extraction_prompt)
+
+            self.log_execution("extraction", {"raw_result": extraction_result})
+
+            # Parse JSON (handle potential parsing errors)
+            try:
+                # Clean up the response (remove markdown code blocks if present)
+                if "```json" in extraction_result:
+                    extraction_result = extraction_result.split("```json")[1].split("```")[0]
+                elif "```" in extraction_result:
+                    extraction_result = extraction_result.split("```")[1].split("```")[0]
+
+                basic_info = json.loads(extraction_result.strip())
+            except json.JSONDecodeError as e:
+                logger.error(f"JSON parsing error: {e}\nResponse: {extraction_result}")
+                # Fallback to simpler extraction
+                basic_info = await self._fallback_extraction(input_text)
+
+            self.log_execution("parsed_info", basic_info)
+
+            # Step 2: Infer needs based on craft type
+            needs_prompt = f"""Based on this craft profile, infer the artisan's needs:
 
 Craft Type: {basic_info.get('craft_type', 'unknown')}
 Specialization: {basic_info.get('specialization', 'unknown')}
@@ -122,21 +163,21 @@ Provide in JSON format:
 
 Return ONLY valid JSON."""
 
-        needs_result = await self.ollama.reasoning_task(needs_prompt)
-        
-        try:
-            if "```json" in needs_result:
-                needs_result = needs_result.split("```json")[1].split("```")[0]
-            elif "```" in needs_result:
-                needs_result = needs_result.split("```")[1].split("```")[0]
-            needs_info = json.loads(needs_result.strip())
-        except:
-            needs_info = {"error": "Could not parse needs"}
-        
-        self.log_execution("inferred_needs", needs_info)
-        
-        # Step 3: Identify skill adjacencies (what else could they make/sell)
-        adjacency_prompt = f"""Given this craft: {basic_info.get('craft_type')} ({basic_info.get('specialization')})
+            needs_result = await self.ollama.reasoning_task(needs_prompt)
+
+            try:
+                if "```json" in needs_result:
+                    needs_result = needs_result.split("```json")[1].split("```")[0]
+                elif "```" in needs_result:
+                    needs_result = needs_result.split("```")[1].split("```")[0]
+                needs_info = json.loads(needs_result.strip())
+            except:
+                needs_info = {"error": "Could not parse needs"}
+
+            self.log_execution("inferred_needs", needs_info)
+
+            # Step 3: Identify skill adjacencies (what else could they make/sell)
+            adjacency_prompt = f"""Given this craft: {basic_info.get('craft_type')} ({basic_info.get('specialization')})
 
 What are 3-5 adjacent products or markets they could explore? Consider:
 - Related crafts using similar skills
@@ -146,18 +187,18 @@ What are 3-5 adjacent products or markets they could explore? Consider:
 
 Return as JSON array: ["adjacency 1", "adjacency 2", ...]"""
 
-        adjacency_result = await self.ollama.reasoning_task(adjacency_prompt)
-        
-        try:
-            if "```json" in adjacency_result:
-                adjacency_result = adjacency_result.split("```json")[1].split("```")[0]
-            elif "```" in adjacency_result:
-                adjacency_result = adjacency_result.split("```")[1].split("```")[0]
-            adjacencies = json.loads(adjacency_result.strip())
-        except:
-            adjacencies = []
-        
-        self.log_execution("adjacencies", adjacencies)
+            adjacency_result = await self.ollama.reasoning_task(adjacency_prompt)
+
+            try:
+                if "```json" in adjacency_result:
+                    adjacency_result = adjacency_result.split("```json")[1].split("```")[0]
+                elif "```" in adjacency_result:
+                    adjacency_result = adjacency_result.split("```")[1].split("```")[0]
+                adjacencies = json.loads(adjacency_result.strip())
+            except:
+                adjacencies = []
+
+            self.log_execution("adjacencies", adjacencies)
         
         # Step 4: Store in vector database for future retrieval
         profile_document = f"""
@@ -201,6 +242,52 @@ Return as JSON array: ["adjacency 1", "adjacency 2", ...]"""
         
         return final_response
     
+    def _get_craft_defaults(self, craft_type: str) -> Dict:
+        """Get default needs for a craft type"""
+        craft_defaults = {
+            "pottery": {
+                "tools": ["pottery wheel", "kiln", "glazing tools", "measuring tools"],
+                "workspace_requirements": "kiln required, ventilation needed, clay storage space",
+                "raw_materials": ["clay", "pottery glaze", "pigments"],
+                "skills_required": ["wheel throwing", "glazing", "firing"],
+                "typical_products": ["plates", "vases", "bowls", "cups"],
+                "market_segment": "traditional craft, premium segment"
+            },
+            "traditional crafts": {
+                "tools": ["hand tools", "measuring tools", "finishing supplies"],
+                "workspace_requirements": "well-lit workspace with storage",
+                "raw_materials": ["fabric", "threads", "dyes"],
+                "skills_required": ["hand craftsmanship", "traditional techniques"],
+                "typical_products": ["traditional items", "decorative pieces"],
+                "market_segment": "traditional craft, mid-range"
+            },
+            "furniture": {
+                "tools": ["woodworking tools", "finishing equipment"],
+                "workspace_requirements": "wood shop with dust collection",
+                "raw_materials": ["wood", "varnish", "hardware"],
+                "skills_required": ["woodworking", "finishing", "assembly"],
+                "typical_products": ["furniture pieces", "decorative items"],
+                "market_segment": "traditional craft, premium"
+            }
+        }
+        return craft_defaults.get(craft_type.lower(), {
+            "tools": ["basic tools"],
+            "workspace_requirements": "standard workspace",
+            "raw_materials": ["basic materials"],
+            "skills_required": ["craftsmanship"],
+            "typical_products": ["handmade items"],
+            "market_segment": "traditional craft"
+        })
+
+    def _get_craft_adjacencies(self, craft_type: str) -> List[str]:
+        """Get skill adjacencies for a craft type"""
+        adjacencies = {
+            "pottery": ["ceramic jewelry", "tile making", "sculpture", "kitchenware"],
+            "traditional crafts": ["textiles", "embroidery", "handmade accessories", "traditional decor"],
+            "furniture": ["wood carving", "home decor", "custom pieces"]
+        }
+        return adjacencies.get(craft_type.lower(), ["related craft items", "traditional accessories"])
+
     async def _fallback_extraction(self, text: str) -> Dict:
         """Fallback extraction if JSON parsing fails"""
         return {

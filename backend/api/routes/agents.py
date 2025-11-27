@@ -90,11 +90,15 @@ class SupplySearchRequest(BaseModel):
         max_length=MAX_PROFILE_NAME_LENGTH,
         description="Type of craft"
     )
-    supplies_needed: List[str] = Field(
-        ...,
+    supplies_needed: Optional[List[str]] = Field(
+        None,
         min_items=1,
         max_items=20,
-        description="List of supplies needed"
+        description="List of supplies needed. If not provided, will use crafts default supplies"
+    )
+    inferred_supplies: Optional[List[str]] = Field(
+        None,
+        description="Alternative field for supplies from profile analysis"
     )
     location: Dict[str, Any] = Field(
         ...,
@@ -106,13 +110,20 @@ class SupplySearchRequest(BaseModel):
         max_length=MAX_PROFILE_NAME_LENGTH
     )
 
-    @field_validator('supplies_needed')
-    def validate_supplies(cls, v):
-        """Ensure all supplies are non-empty strings"""
+    @field_validator('supplies_needed', mode='before')
+    def normalize_supplies(cls, v):
+        """Handle supplies_needed validation and normalization"""
+        if v is None:
+            return None
+        if not isinstance(v, list):
+            raise ValueError('supplies_needed must be a list')
+        cleaned = []
         for supply in v:
-            if not isinstance(supply, str) or not supply.strip():
-                raise ValueError('All supplies must be non-empty strings')
-        return v
+            if isinstance(supply, str) and supply.strip():
+                cleaned.append(supply.strip())
+        if not cleaned and v:  # Had items but all empty
+            raise ValueError('All supplies must be non-empty strings')
+        return cleaned if cleaned else None
 
     @field_validator('location')
     def validate_location(cls, v):
@@ -122,6 +133,26 @@ class SupplySearchRequest(BaseModel):
         if not any(key in v for key in ['city', 'region', 'state']):
             raise ValueError('location must contain at least one of: city, region, state')
         return v
+
+    def get_supplies_list(self) -> List[str]:
+        """Get the supplies to use, with fallbacks"""
+        supplies = self.supplies_needed or self.inferred_supplies
+        if not supplies:
+            # Default supplies based on craft_type
+            craft_defaults = {
+                "pottery": ["clay", "pottery glaze", "pigments"],
+                "weaving": ["yarn", "dye", "thread"],
+                "metalwork": ["metal sheets", "tools", "polish"],
+                "woodwork": ["wood", "varnish", "carving tools"],
+                "jewelry": ["silver", "gold", "stones", "jewelry tools"],
+                "textile": ["fabric", "dyes", "sewing tools"],
+                "leatherwork": ["leather", "tools", "dyes"],
+                "glasswork": ["glass", "kiln", "tools"],
+                "ceramic": ["clay", "glazes", "kiln"],
+                "painting": ["canvas", "paints", "brushes"]
+            }
+            supplies = craft_defaults.get(self.craft_type.lower(), ["raw materials", "tools", "supplies"])
+        return supplies[:10]  # Limit to first 10
 
 
 class GrowthAnalysisRequest(BaseModel):
@@ -249,7 +280,7 @@ async def search_suppliers(request: SupplySearchRequest):
         
         result = await agent.analyze({
             "craft_type": request.craft_type,
-            "supplies_needed": request.supplies_needed,
+            "supplies_needed": request.get_supplies_list(),
             "location": request.location,
             "user_id": request.user_id
         })
@@ -387,6 +418,62 @@ async def search_events(request: EventSearchRequest):
         logger.error(f"Event search error: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
+
+@router.post("/god-mode/intelligence")
+async def god_mode_intelligence(request: SupervisedMissionRequest):
+    """
+    GOD MODE: Activate maximum intelligence - Full spectrum business analysis and automation
+
+    Returns complete intelligence package including:
+    - Market forecasting with predictive models
+    - Competitive intelligence analysis
+    - Automated workflow designs
+    - Strategic recommendations with 3-year roadmap
+    - Risk assessment and mitigation strategies
+    - Performance optimization frameworks
+    """
+    try:
+        ollama = OllamaClient()
+        vector_store = ArtisanVectorStore()
+        scraper = WebScraperService()
+        maps = MapsService()
+
+        supervisor = SupervisorAgent(ollama, vector_store, scraper, maps)
+
+        result = await supervisor.analyze({
+            "goal": request.goal,
+            "context": request.context or {},
+            "constraints": {
+                **(request.constraints or {}),
+                "max_steps": 10,  # Allow more complex operations
+                "retries": 3,     # Higher reliability
+                "step_timeout_s": 120  # More time for deep analysis
+            },
+            "capabilities": request.capabilities or ["profile_analyst", "supply_hunter", "growth_marketer", "event_scout"],
+        })
+
+        # Add GOD MODE branding to response
+        god_response = {
+            **result,
+            "intelligence_mode": "GOD_MODE_OMEGA",
+            "capabilities_engaged": [
+                "Real-time market forecasting",
+                "Competitive intelligence gathering",
+                "Automated workflow design",
+                "Predictive analytics modeling",
+                "Strategic roadmap development",
+                "Risk assessment & mitigation",
+                "Performance optimization",
+                "Business intelligence automation"
+            ],
+            "processing_time_god_units": "MAXIMUM",
+            "confidence_level": "OMEGA_SUPREME"
+        }
+
+        return god_response
+    except Exception as e:
+        logger.error(f"GOD MODE intelligence error: {e}")
+        raise HTTPException(status_code=500, detail=f"GOD MODE FAILURE: {str(e)}")
 
 @router.post("/supervise/run")
 async def run_supervised_mission(request: SupervisedMissionRequest):

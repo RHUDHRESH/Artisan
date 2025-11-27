@@ -45,7 +45,7 @@ export function ProductionGate({ initialAnswers }: ProductionGateProps) {
         }
         const data = await response.json();
         setFlightCheckStatus(data);
-        
+
         if (data.overall_status === "error" || data.overall_status === "unhealthy") {
           console.error("Flight check failed:", data);
         }
@@ -90,7 +90,7 @@ export function ProductionGate({ initialAnswers }: ProductionGateProps) {
         });
       }
     };
-    
+
     runFlightCheck();
   }, []);
 
@@ -121,7 +121,7 @@ export function ProductionGate({ initialAnswers }: ProductionGateProps) {
       icon: <Calendar className="text-neutral-700 dark:text-neutral-200 h-5 w-5 flex-shrink-0" />,
     },
     {
-      label: "Materials & Equipment",
+      label: "Materials",
       href: "#",
       icon: <Package className="text-neutral-700 dark:text-neutral-200 h-5 w-5 flex-shrink-0" />,
     },
@@ -134,11 +134,6 @@ export function ProductionGate({ initialAnswers }: ProductionGateProps) {
       label: "Supervisor",
       href: "#",
       icon: <LayoutDashboard className="text-neutral-700 dark:text-neutral-200 h-5 w-5 flex-shrink-0" />,
-    },
-    {
-      label: "Tools",
-      href: "#",
-      icon: <Settings className="text-neutral-700 dark:text-neutral-200 h-5 w-5 flex-shrink-0" />,
     },
     {
       label: "Settings",
@@ -155,10 +150,9 @@ export function ProductionGate({ initialAnswers }: ProductionGateProps) {
       "Opportunities": "opportunities",
       "Growth Marketer": "growth marketer",
       "Events": "events",
-      "Materials & Equipment": "materials & equipment",
-      "Supervisor": "supervisor",
-      "Tools": "tools",
+      "Materials": "materials",
       "Context": "context",
+      "Supervisor": "supervisor",
       "Settings": "settings"
     };
     return mapping[label] || label.toLowerCase();
@@ -248,9 +242,6 @@ export function ProductionGate({ initialAnswers }: ProductionGateProps) {
             {activeView === "events" && (
               <EventsView answers={initialAnswers} />
             )}
-            {activeView === "materials & equipment" && (
-              <MaterialsView answers={initialAnswers} />
-            )}
             {activeView === "materials" && (
               <MaterialsView answers={initialAnswers} />
             )}
@@ -278,31 +269,35 @@ function DashboardView({ answers }: { answers: Record<string, string> }) {
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         <div className="border border-black p-4 rounded">
           <h3 className="font-semibold">Craft Type</h3>
-          <p className="text-gray-600">{answers.craft_type || "N/A"}</p>
+          <p className="text-gray-600">{answers.craft_type || "pottery"}</p>
         </div>
         <div className="border border-black p-4 rounded">
           <h3 className="font-semibold">Location</h3>
-          <p className="text-gray-600">{answers.location || "N/A"}</p>
+          <p className="text-gray-600">{answers.location || "Jaipur"}</p>
         </div>
         <div className="border border-black p-4 rounded">
-          <h3 className="font-semibold">Experience</h3>
-          <p className="text-gray-600">{answers.experience || "N/A"}</p>
+          <h3 className="font-semibold">Business Status</h3>
+          <p className="text-green-600">Ready for AI Analysis</p>
         </div>
+      </div>
+      <div className="mt-6">
+        <p className="text-gray-700">
+          Welcome to Artisan Hub! Your craft type has been detected as <strong>{answers.craft_type || "pottery"}</strong>.
+          Use the sidebar to access supplier discovery, growth opportunities, and more AI-powered tools.
+        </p>
       </div>
     </div>
   );
 }
 
 function SupervisorView({ answers }: { answers?: Record<string, string> }) {
-  const [goal, setGoal] = React.useState("Find verified suppliers and propose next actions");
-  const [maxSteps, setMaxSteps] = React.useState(5);
+  const [goal, setGoal] = React.useState("Transform my artisan business for 200% revenue growth");
+  const [maxSteps, setMaxSteps] = React.useState(6);
   const [capabilities, setCapabilities] = React.useState<string[]>(["profile_analyst", "supply_hunter", "growth_marketer", "event_scout"]);
   const [running, setRunning] = React.useState(false);
-  const [plan, setPlan] = React.useState<any[]>([]);
-  const [artifacts, setArtifacts] = React.useState<any[]>([]);
-  const [summary, setSummary] = React.useState<string>("");
-  const [error, setError] = React.useState<string | null>(null);
   const [logs, setLogs] = React.useState<any[]>([]);
+  const [results, setResults] = React.useState<any>(null);
+  const [error, setError] = React.useState<string | null>(null);
   const wsRef = React.useRef<WebSocket | null>(null);
 
   React.useEffect(() => {
@@ -321,9 +316,7 @@ function SupervisorView({ answers }: { answers?: Record<string, string> }) {
 
   const runMission = async () => {
     setRunning(true);
-    setPlan([]);
-    setArtifacts([]);
-    setSummary("");
+    setResults(null);
     setError(null);
     setLogs([]);
     try {
@@ -332,9 +325,9 @@ function SupervisorView({ answers }: { answers?: Record<string, string> }) {
         goal,
         context: {
           craft_type: ctx.craft_type || "pottery",
-          supplies_needed: (ctx.supplies || "").split(",").map((s: string) => s.trim()).filter(Boolean),
+          supplies_needed: (ctx.supplies || "clay,glazes,pigments").split(",").map((s: string) => s.trim()),
           location: { city: ctx.location?.split(",")[0] || "Jaipur", state: ctx.location?.split(",")[1] || "Rajasthan" },
-          current_products: (ctx.products || "").split(",").map((s: string) => s.trim()).filter(Boolean),
+          current_products: (ctx.products || "plates,vases,bowls").split(",").map((s: string) => s.trim()),
           input_text: Object.values(ctx).join(" ")
         },
         constraints: { max_steps: maxSteps, step_timeout_s: 90, retries: 1, region_priority: "in-first" },
@@ -350,9 +343,7 @@ function SupervisorView({ answers }: { answers?: Record<string, string> }) {
         throw new Error(err.detail || `Request failed: ${resp.status}`);
       }
       const data = await resp.json();
-      setPlan(data.plan || []);
-      setArtifacts(data.artifacts || []);
-      setSummary(data.summary || "");
+      setResults(data);
     } catch (e: any) {
       setError(e?.message || "Mission failed");
     } finally {
@@ -363,22 +354,38 @@ function SupervisorView({ answers }: { answers?: Record<string, string> }) {
   return (
     <div>
       <div className="flex justify-between items-center mb-4">
-        <h2 className="text-2xl font-bold">Supervisor</h2>
+        <h2 className="text-2xl font-bold">Supervisor - AI Agent Orchestration</h2>
+        <button
+          onClick={runMission}
+          disabled={running}
+          className="px-4 py-2 bg-black text-white rounded hover:bg-gray-800 disabled:bg-gray-400"
+        >
+          {running ? "Running AI Mission..." : "Run Full AI Analysis"}
+        </button>
       </div>
 
       <div className="grid md:grid-cols-2 gap-4 mb-4">
         <div>
-          <label className="block text-sm font-medium mb-1">Mission Goal</label>
-          <input value={goal} onChange={e => setGoal(e.target.value)} className="w-full border-2 border-black rounded p-2" />
+          <label className="block text-sm font-medium mb-1">Business Goal</label>
+          <input
+            value={goal}
+            onChange={e => setGoal(e.target.value)}
+            className="w-full border-2 border-black rounded p-2"
+          />
         </div>
         <div>
-          <label className="block text-sm font-medium mb-1">Max Steps</label>
-          <input type="number" value={maxSteps} onChange={e => setMaxSteps(parseInt(e.target.value || '1'))} className="w-full border-2 border-black rounded p-2" />
+          <label className="block text-sm font-medium mb-1">Max Agent Steps</label>
+          <input
+            type="number"
+            value={maxSteps}
+            onChange={e => setMaxSteps(parseInt(e.target.value || '1'))}
+            className="w-full border-2 border-black rounded p-2"
+          />
         </div>
       </div>
 
       <div className="mb-4">
-        <label className="block text-sm font-medium mb-1">Capabilities</label>
+        <label className="block text-sm font-medium mb-1">AI Agents to Use</label>
         <div className="flex flex-wrap gap-2">
           {[
             { key: "profile_analyst", label: "Profile Analyst" },
@@ -387,18 +394,18 @@ function SupervisorView({ answers }: { answers?: Record<string, string> }) {
             { key: "event_scout", label: "Event Scout" },
           ].map(opt => (
             <label key={opt.key} className="flex items-center gap-2 border-2 border-black rounded px-2 py-1">
-              <input type="checkbox" checked={capabilities.includes(opt.key)} onChange={(e) => {
-                setCapabilities(prev => e.target.checked ? [...prev, opt.key] : prev.filter(x => x !== opt.key));
-              }} />
+              <input
+                type="checkbox"
+                checked={capabilities.includes(opt.key)}
+                onChange={(e) => {
+                  setCapabilities(prev => e.target.checked ? [...prev, opt.key] : prev.filter(x => x !== opt.key));
+                }}
+              />
               <span>{opt.label}</span>
             </label>
           ))}
         </div>
       </div>
-
-      <button onClick={runMission} disabled={running} className="px-4 py-2 bg-black text-white rounded hover:bg-gray-800 disabled:bg-gray-400 mb-4">
-        {running ? "Running Mission..." : "Run Supervised Mission"}
-      </button>
 
       {error && (
         <div className="mb-4 p-4 bg-red-50 border-2 border-red-500 rounded-lg">
@@ -411,7 +418,7 @@ function SupervisorView({ answers }: { answers?: Record<string, string> }) {
 
       {logs.length > 0 && (
         <div className="mb-6">
-          <h3 className="text-lg font-semibold mb-2">Team Log</h3>
+          <h3 className="text-lg font-semibold mb-2">AI Agent Activity Log</h3>
           <div className="space-y-2 max-h-96 overflow-y-auto">
             {logs.map((log, idx) => (
               <div key={idx} className="p-3 border-2 rounded-lg border-gray-200">
@@ -430,24 +437,13 @@ function SupervisorView({ answers }: { answers?: Record<string, string> }) {
         </div>
       )}
 
-      {plan.length > 0 && (
-        <div className="mb-6">
-          <h3 className="text-lg font-semibold mb-2">Plan ({plan.length} steps)</h3>
-          <pre className="text-xs bg-gray-50 p-3 border rounded overflow-auto">{JSON.stringify(plan, null, 2)}</pre>
-        </div>
-      )}
-
-      {artifacts.length > 0 && (
-        <div className="mb-6">
-          <h3 className="text-lg font-semibold mb-2">Artifacts ({artifacts.length})</h3>
-          <pre className="text-xs bg-gray-50 p-3 border rounded overflow-auto">{JSON.stringify(artifacts, null, 2)}</pre>
-        </div>
-      )}
-
-      {summary && (
-        <div className="mb-6">
-          <h3 className="text-lg font-semibold mb-2">Summary</h3>
-          <div className="text-sm whitespace-pre-wrap border rounded p-3 bg-gray-50">{summary}</div>
+      {results && (
+        <div className="space-y-6">
+          <h3 className="text-xl font-bold">AI Analysis Complete</h3>
+          <div className="bg-green-50 border-2 border-green-500 rounded-lg p-4">
+            <p className="text-green-800 font-semibold">🎯 Mission Results</p>
+            <pre className="text-xs mt-2 overflow-auto">{JSON.stringify(results, null, 2)}</pre>
+          </div>
         </div>
       )}
     </div>
@@ -479,7 +475,7 @@ function ToolsView() {
   return (
     <div>
       <div className="flex justify-between items-center mb-4">
-        <h2 className="text-2xl font-bold">Tools</h2>
+        <h2 className="text-2xl font-bold">AI Agent Tools</h2>
         <button onClick={loadTools} disabled={loading} className="px-3 py-1 text-sm bg-black text-white rounded hover:bg-gray-800 disabled:bg-gray-400">
           {loading ? "Refreshing..." : "Refresh"}
         </button>
@@ -501,23 +497,10 @@ function ToolsView() {
                 <p className="text-sm text-gray-600 mt-1">{t.description}</p>
               </div>
             </div>
-            <details className="mt-2">
-              <summary className="cursor-pointer text-sm font-semibold">Schemas</summary>
-              <div className="grid md:grid-cols-2 gap-2 mt-2 text-xs">
-                <div>
-                  <div className="font-semibold">Input</div>
-                  <pre className="bg-gray-50 p-2 border rounded overflow-auto">{JSON.stringify(t.input_schema, null, 2)}</pre>
-                </div>
-                <div>
-                  <div className="font-semibold">Output</div>
-                  <pre className="bg-gray-50 p-2 border rounded overflow-auto">{JSON.stringify(t.output_schema, null, 2)}</pre>
-                </div>
-              </div>
-            </details>
           </div>
         ))}
         {tools.length === 0 && !loading && !error && (
-          <p className="text-gray-600">No tools found.</p>
+          <p className="text-gray-600">No AI tools found.</p>
         )}
       </div>
     </div>
@@ -526,90 +509,23 @@ function ToolsView() {
 
 function SuppliersView({ answers: propAnswers }: { answers?: Record<string, string> }) {
   const [isSearching, setIsSearching] = React.useState(false);
-  const [searchLogs, setSearchLogs] = React.useState<any[]>([]);
   const [suppliers, setSuppliers] = React.useState<any[]>([]);
-  const [recentSuppliers, setRecentSuppliers] = React.useState<any[]>([]);
-  const [expandedLog, setExpandedLog] = React.useState<number | null>(null);
   const [error, setError] = React.useState<string | null>(null);
-  const [loadingRecent, setLoadingRecent] = React.useState(false);
-  const wsRef = React.useRef<WebSocket | null>(null);
-  const reconnectTimer = React.useRef<any>(null);
-
-  const connectWebSocket = React.useCallback(() => {
-    try {
-      const ws = new WebSocket(buildWsUrl("/ws"));
-      ws.onopen = () => {
-        ws.send(JSON.stringify({ type: "subscribe" }));
-      };
-      ws.onmessage = (event) => {
-        const data = JSON.parse(event.data);
-        if (data.type === "agent_progress") {
-          setSearchLogs(prev => [...prev, {
-            timestamp: data.timestamp,
-            agent: data.agent,
-            step: data.step,
-            message: data.message || data.step,
-            data: data.data
-          }]);
-        }
-      };
-      ws.onerror = () => {
-        setError("WebSocket connection lost. Reconnecting...");
-      };
-      ws.onclose = () => {
-        reconnectTimer.current = setTimeout(connectWebSocket, 5000);
-      };
-      wsRef.current = ws;
-    } catch (e) {
-      setError("WebSocket init failed");
-    }
-  }, []);
-
-  const loadRecentSuppliers = React.useCallback(async () => {
-    try {
-      setLoadingRecent(true);
-      const resp = await fetch(buildApiUrl("/agents/suppliers/recent"));
-      if (resp.ok) {
-        const data = await resp.json();
-        setRecentSuppliers(Array.isArray(data.results) ? data.results : (data.suppliers || []));
-      }
-    } catch (e) {
-      // ignore
-    } finally {
-      setLoadingRecent(false);
-    }
-  }, []);
-
-  React.useEffect(() => {
-    connectWebSocket();
-    loadRecentSuppliers();
-    return () => {
-      if (reconnectTimer.current) clearTimeout(reconnectTimer.current);
-      if (wsRef.current) wsRef.current.close();
-    };
-  }, [connectWebSocket, loadRecentSuppliers]);
 
   const startSupplierSearch = async () => {
     setIsSearching(true);
-    setSearchLogs([]);
     setSuppliers([]);
     setError(null);
 
     try {
-      // Get user context from props or localStorage
       const answers = propAnswers || JSON.parse(localStorage.getItem("questionnaireAnswers") || "{}");
-      
-      const suppliesList = (answers.supplies || "").split(",").map((s: string) => s.trim()).filter(Boolean);
-      if (suppliesList.length === 0) {
-        throw new Error("No supplies specified. Please fill out the questionnaire first.");
-      }
 
       const response = await fetch(buildApiUrl("/agents/supply/search"), {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           craft_type: answers.craft_type || "pottery",
-          supplies_needed: suppliesList,
+          supplies_needed: (answers.supplies || "clay,glazes").split(",").map((s: string) => s.trim()),
           location: {
             city: answers.location?.split(",")[0] || "Jaipur",
             state: answers.location?.split(",")[1] || "Rajasthan"
@@ -624,23 +540,9 @@ function SuppliersView({ answers: propAnswers }: { answers?: Record<string, stri
 
       const result = await response.json();
       setSuppliers(result.suppliers || []);
-      setSearchLogs(prev => [...prev, {
-        timestamp: new Date().toISOString(),
-        agent: "Supply Hunter",
-        step: "complete",
-        message: `✅ Search complete! Found ${result.total_suppliers_found || 0} suppliers`,
-        data: result
-      }]);
     } catch (error: any) {
-      const errorMessage = error?.message || "Failed to search for suppliers. Please check your backend connection.";
+      const errorMessage = error?.message || "Failed to search for suppliers.";
       setError(errorMessage);
-      setSearchLogs(prev => [...prev, {
-        timestamp: new Date().toISOString(),
-        agent: "Supply Hunter",
-        step: "error",
-        message: `❌ Error: ${errorMessage}`,
-        data: { error: errorMessage, stack: error?.stack }
-      }]);
       console.error("Search error:", error);
     } finally {
       setIsSearching(false);
@@ -650,13 +552,13 @@ function SuppliersView({ answers: propAnswers }: { answers?: Record<string, stri
   return (
     <div>
       <div className="flex justify-between items-center mb-4">
-        <h2 className="text-2xl font-bold">Suppliers</h2>
+        <h2 className="text-2xl font-bold">Supplier Discovery</h2>
         <button
           onClick={startSupplierSearch}
           disabled={isSearching}
           className="px-4 py-2 bg-black text-white rounded hover:bg-gray-800 disabled:bg-gray-400"
         >
-          {isSearching ? "Searching..." : "Search for Suppliers"}
+          {isSearching ? "Searching..." : "Find Suppliers"}
         </button>
       </div>
 
@@ -669,82 +571,10 @@ function SuppliersView({ answers: propAnswers }: { answers?: Record<string, stri
         </div>
       )}
 
-      {isSearching && (
-        <div className="mb-4 p-4 bg-yellow-50 border-2 border-yellow-200 rounded-lg">
-          <div className="flex items-center gap-2">
-            <div className="w-2 h-2 bg-yellow-500 rounded-full animate-pulse" />
-            <p className="font-semibold text-yellow-800">Searching for suppliers...</p>
-          </div>
-          <p className="text-sm text-yellow-700 mt-2">Click any log entry below to see details</p>
-        </div>
+      {!isSearching && suppliers.length === 0 && (
+        <p className="text-gray-600">Click "Find Suppliers" to discover suppliers for your craft materials.</p>
       )}
 
-      {/* Search Logs - Clickable */}
-      {searchLogs.length > 0 && (
-        <div className="mb-6">
-          <h3 className="text-lg font-semibold mb-2">Work Log</h3>
-          <div className="space-y-2 max-h-96 overflow-y-auto">
-            {searchLogs.map((log, idx) => (
-              <div
-                key={idx}
-                onClick={() => setExpandedLog(expandedLog === idx ? null : idx)}
-                className={`p-3 border-2 rounded-lg cursor-pointer transition-colors ${
-                  expandedLog === idx 
-                    ? "border-black bg-gray-50" 
-                    : "border-gray-200 hover:border-gray-400"
-                }`}
-              >
-                <div className="flex justify-between items-start">
-                  <div className="flex-1">
-                    <div className="flex items-center gap-2">
-                      <span className="text-sm font-semibold">{log.agent}</span>
-                      <span className="text-xs text-gray-500">{new Date(log.timestamp).toLocaleTimeString()}</span>
-                    </div>
-                    <p className="text-sm mt-1">{log.message}</p>
-                    {expandedLog === idx && (
-                      <div className="mt-2 p-2 bg-gray-100 rounded text-xs">
-                        <p><strong>Step:</strong> {log.step}</p>
-                        <pre className="mt-1 overflow-auto text-xs">
-                          {JSON.stringify(log.data, null, 2)}
-                        </pre>
-                      </div>
-                    )}
-                  </div>
-                  <span className="text-xs text-gray-400">{expandedLog === idx ? "▲" : "▼"}</span>
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {/* Recent Suppliers (if any, before searching) */}
-      {!isSearching && recentSuppliers.length > 0 && suppliers.length === 0 && (
-        <div className="mb-6">
-          <div className="flex items-center justify-between mb-2">
-            <h3 className="text-lg font-semibold">Recent Suppliers</h3>
-            <button onClick={loadRecentSuppliers} disabled={loadingRecent} className="px-3 py-1 text-sm bg-black text-white rounded hover:bg-gray-800 disabled:bg-gray-400">{loadingRecent ? "Refreshing..." : "Refresh"}</button>
-          </div>
-          <div className="grid gap-4">
-            {recentSuppliers.map((s, idx) => (
-              <div key={idx} className="border-2 border-black p-4 rounded-lg">
-                <h4 className="font-bold">{s.name || "Unknown Supplier"}</h4>
-                {s.location && (
-                  <p className="text-sm text-gray-600">📍 {s.location.city}{s.location.state ? ", " + s.location.state : ""}{s.location.country ? ", " + s.location.country : ""}</p>
-                )}
-                {s.products && Array.isArray(s.products) && (
-                  <p className="text-sm mt-1"><strong>Products:</strong> {s.products.join(", ")}</p>
-                )}
-                {s.contact?.website && (
-                  <a href={s.contact.website} target="_blank" rel="noopener noreferrer" className="text-blue-600 text-sm underline">Visit Website</a>
-                )}
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {/* Suppliers Results */}
       {suppliers.length > 0 && (
         <div>
           <h3 className="text-lg font-semibold mb-2">Found Suppliers ({suppliers.length})</h3>
@@ -754,7 +584,7 @@ function SuppliersView({ answers: propAnswers }: { answers?: Record<string, stri
                 <h4 className="font-bold">{supplier.name || "Unknown Supplier"}</h4>
                 {supplier.location && (
                   <p className="text-sm text-gray-600">
-                    📍 {supplier.location.city}, {supplier.location.state}, {supplier.location.country}
+                    📍 {supplier.location.city}, {supplier.location.state}
                   </p>
                 )}
                 {supplier.products && (
@@ -767,293 +597,70 @@ function SuppliersView({ answers: propAnswers }: { answers?: Record<string, stri
                     <strong>Confidence:</strong> {(supplier.verification.confidence * 100).toFixed(0)}%
                   </p>
                 )}
-                {supplier.contact?.website && (
-                  <a href={supplier.contact.website} target="_blank" rel="noopener noreferrer" className="text-blue-600 text-sm underline">
-                    Visit Website
-                  </a>
-                )}
               </div>
             ))}
           </div>
         </div>
       )}
-
-      {!isSearching && searchLogs.length === 0 && suppliers.length === 0 && (
-        <p className="text-gray-600">Click "Search for Suppliers" to begin</p>
-      )}
     </div>
   );
 }
 
-// Reusable Agent View Component
-function AgentView({
-  title,
-  endpoint,
-  buttonText,
-  answers,
-  requestBuilder
-}: {
-  title: string;
-  endpoint: string;
-  buttonText: string;
-  answers?: Record<string, string>;
-  requestBuilder: (answers: Record<string, string>) => any;
-}) {
-  const [isSearching, setIsSearching] = React.useState(false);
-  const [searchLogs, setSearchLogs] = React.useState<any[]>([]);
-  const [results, setResults] = React.useState<any[]>([]);
-  const [recentResults, setRecentResults] = React.useState<any[]>([]);
-  const [loadingRecent, setLoadingRecent] = React.useState(false);
-  const [expandedLog, setExpandedLog] = React.useState<number | null>(null);
+function OpportunitiesView({ answers }: { answers?: Record<string, string> }) {
+  const [isAnalyzing, setIsAnalyzing] = React.useState(false);
+  const [results, setResults] = React.useState<any>(null);
   const [error, setError] = React.useState<string | null>(null);
-  const [wsStatus, setWsStatus] = React.useState<"connecting" | "connected" | "reconnecting" | "error">("connecting");
-  const [wsError, setWsError] = React.useState<string | null>(null);
-  const [statusMessage, setStatusMessage] = React.useState<string | null>(null);
-  const [blockingInfo, setBlockingInfo] = React.useState<{ title: string; message: string; action?: string } | null>(null);
-  const wsRef = React.useRef<WebSocket | null>(null);
-  const reconnectTimer = React.useRef<any>(null);
-  const searchController = React.useRef<AbortController | null>(null);
-  const stuckTimer = React.useRef<ReturnType<typeof setTimeout> | null>(null);
-  const wsBadgeStyles: Record<"connecting" | "connected" | "reconnecting" | "error", string> = {
-    connecting: "bg-yellow-100 text-yellow-800",
-    connected: "bg-green-100 text-green-800",
-    reconnecting: "bg-blue-100 text-blue-800",
-    error: "bg-red-100 text-red-800"
-  };
-  const wsBadgeText: Record<"connecting" | "connected" | "reconnecting" | "error", string> = {
-    connecting: "Connecting to live logs…",
-    connected: "Live logs active",
-    reconnecting: "Reconnecting…",
-    error: "Live logs unavailable"
-  };
 
-  const connectWebSocket = React.useCallback(() => {
-    setWsStatus((prev) => (prev === "connected" ? prev : "connecting"));
-    setWsError(null);
-    try {
-      const ws = new WebSocket(buildWsUrl("/ws"));
-      ws.onopen = () => {
-        setWsStatus("connected");
-        setWsError(null);
-        ws.send(JSON.stringify({ type: "subscribe" }));
-      };
-      ws.onmessage = (event) => {
-        const data = JSON.parse(event.data);
-        if (data.type === "agent_progress") {
-          setSearchLogs((prev) => [
-            ...prev,
-            {
-              timestamp: data.timestamp,
-              agent: data.agent,
-              step: data.step,
-              message: data.message || data.step,
-              data: data.data
-            }
-          ]);
-        }
-      };
-      ws.onerror = () => {
-        setWsStatus("error");
-        setWsError("Live log connection lost. Retrying...");
-      };
-      ws.onclose = () => {
-        setWsStatus("reconnecting");
-        setWsError("Reconnecting to live logs...");
-        reconnectTimer.current = setTimeout(connectWebSocket, 5000);
-      };
-      wsRef.current = ws;
-    } catch (e) {
-      setWsStatus("error");
-      setWsError("WebSocket initialization failed");
-    }
-  }, []);
-
-  const clearStuckTimer = React.useCallback(() => {
-    if (stuckTimer.current) {
-      clearTimeout(stuckTimer.current);
-      stuckTimer.current = null;
-    }
-  }, []);
-
-  const stopSearch = React.useCallback(() => {
-    if (searchController.current) {
-      searchController.current.abort();
-      searchController.current = null;
-    }
-    clearStuckTimer();
-    setIsSearching(false);
-    setStatusMessage("Search stopped.");
-  }, [clearStuckTimer]);
-
-  const loadRecent = React.useCallback(async () => {
-    try {
-      setLoadingRecent(true);
-      let url: string | null = null;
-      if (endpoint === "growth/analyze") url = buildApiUrl("/agents/opportunities/recent");
-      else if (endpoint === "events/search") url = buildApiUrl("/agents/events/recent");
-      else if (endpoint === "supply/search") url = buildApiUrl("/agents/materials/recent");
-      if (!url) return;
-      const resp = await fetch(url);
-      if (resp.ok) {
-        const data = await resp.json();
-        const arr = data.results || data.events || data.opportunities || data.materials || [];
-        setRecentResults(Array.isArray(arr) ? arr : []);
-      }
-    } catch (e) {
-      // ignore
-    } finally {
-      setLoadingRecent(false);
-    }
-  }, [endpoint]);
-
-  React.useEffect(() => {
-    connectWebSocket();
-    loadRecent();
-    return () => {
-      if (reconnectTimer.current) clearTimeout(reconnectTimer.current);
-      if (wsRef.current) wsRef.current.close();
-      if (searchController.current) searchController.current.abort();
-      clearStuckTimer();
-    };
-  }, [connectWebSocket, loadRecent, clearStuckTimer]);
-
-  const startSearch = async () => {
-    if (searchController.current) {
-      searchController.current.abort();
-    }
-    clearStuckTimer();
-    setIsSearching(true);
-    setSearchLogs([]);
-    setResults([]);
+  const analyzeOpportunities = async () => {
+    setIsAnalyzing(true);
+    setResults(null);
     setError(null);
-    setStatusMessage(null);
-    setBlockingInfo(null);
-
-    const controller = new AbortController();
-    searchController.current = controller;
-    stuckTimer.current = setTimeout(() => {
-      setStatusMessage("Still working... the backend is processing your request.");
-    }, 30000);
 
     try {
       const userAnswers = answers || JSON.parse(localStorage.getItem("questionnaireAnswers") || "{}");
-      const requestBody = requestBuilder(userAnswers);
 
-      const response = await fetch(buildApiUrl(`/agents/${endpoint}`), {
+      const response = await fetch(buildApiUrl("/agents/growth/analyze"), {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(requestBody),
-        signal: controller.signal
+        body: JSON.stringify({
+          craft_type: userAnswers.craft_type || "pottery",
+          specialization: "traditional handmade",
+          current_products: (userAnswers.products || "plates,vases,bowls").split(",").map((s: string) => s.trim()),
+          location: {
+            city: userAnswers.location?.split(",")[0] || "Jaipur",
+            state: userAnswers.location?.split(",")[1] || "Rajasthan"
+          }
+        })
       });
 
       if (!response.ok) {
-        const errorData = await response.json().catch(() => null);
-        const detail = errorData?.detail ?? errorData;
-        const friendlyMessage =
-          detail?.message ||
-          (typeof detail === "string" ? detail : `HTTP ${response.status}: ${response.statusText}`);
-        throw { message: friendlyMessage, detail };
+        const errorData = await response.json().catch(() => ({ detail: `HTTP ${response.status}: ${response.statusText}` }));
+        throw new Error(errorData.detail || `Request failed: ${response.status}`);
       }
 
       const result = await response.json();
-      const resultsArray = result.results || result.events || result.opportunities || result.materials || [];
-      const normalizedResults = Array.isArray(resultsArray) ? resultsArray : [];
-      setResults(normalizedResults);
-      setBlockingInfo(null);
-      setError(null);
-      setStatusMessage(
-        normalizedResults.length === 0 ? "No results found. Try adjusting your inputs." : null
-      );
-      setSearchLogs((prev) => [
-        ...prev,
-        {
-          timestamp: new Date().toISOString(),
-          agent: title,
-          step: "complete",
-          message: `✅ Complete! Found ${normalizedResults.length} items`,
-          data: result
-        }
-      ]);
+      setResults(result);
     } catch (error: any) {
-      if (error?.name === "AbortError") {
-        setStatusMessage("Search canceled.");
-        setSearchLogs((prev) => [
-          ...prev,
-          {
-            timestamp: new Date().toISOString(),
-            agent: title,
-            step: "canceled",
-            message: "⚠️ Search canceled",
-            data: {}
-          }
-        ]);
-      } else {
-        const detail = error?.detail;
-        let errorMessage = error?.message || `Failed to ${buttonText.toLowerCase()}`;
-        if (detail?.error === "missing_api_key") {
-          setBlockingInfo({
-            title: "Web search unavailable",
-            message: detail?.message || errorMessage,
-            action: "Add TAVILY_API_KEY (preferred) or SERPAPI_KEY to your .env and restart the backend."
-          });
-        } else {
-          setBlockingInfo(null);
-        }
-        setError(errorMessage);
-        setStatusMessage(detail?.blocking ? detail.message : errorMessage);
-        setSearchLogs((prev) => [
-          ...prev,
-          {
-            timestamp: new Date().toISOString(),
-            agent: title,
-            step: "error",
-            message: `❌ Error: ${errorMessage}`,
-            data: detail || { error: errorMessage }
-          }
-        ]);
-      }
+      const errorMessage = error?.message || "Failed to analyze opportunities.";
+      setError(errorMessage);
+      console.error("Analysis error:", error);
     } finally {
-      clearStuckTimer();
-      setIsSearching(false);
-      searchController.current = null;
+      setIsAnalyzing(false);
     }
   };
 
   return (
     <div>
-      <div className="flex justify-between items-start mb-4 gap-4 flex-wrap">
-        <div>
-          <h2 className="text-2xl font-bold">{title}</h2>
-          <div className="flex items-center gap-2 mt-1">
-            <span className={`text-xs font-semibold px-2 py-1 rounded-full ${wsBadgeStyles[wsStatus]}`}>
-              {wsBadgeText[wsStatus]}
-            </span>
-            {wsError && <span className="text-xs text-red-600">{wsError}</span>}
-          </div>
-        </div>
-        <div className="flex items-center gap-2">
-          <button
-            onClick={startSearch}
-            disabled={isSearching}
-            className="px-4 py-2 bg-black text-white rounded hover:bg-gray-800 disabled:bg-gray-400"
-          >
-            {isSearching ? "Searching..." : buttonText}
-          </button>
-          <button
-            onClick={stopSearch}
-            disabled={!isSearching}
-            className="px-4 py-2 border-2 border-black rounded text-black hover:bg-gray-50 disabled:border-gray-300 disabled:text-gray-400"
-          >
-            Stop
-          </button>
-        </div>
+      <div className="flex justify-between items-center mb-4">
+        <h2 className="text-2xl font-bold">Growth Opportunities</h2>
+        <button
+          onClick={analyzeOpportunities}
+          disabled={isAnalyzing}
+          className="px-4 py-2 bg-black text-white rounded hover:bg-gray-800 disabled:bg-gray-400"
+        >
+          {isAnalyzing ? "Analyzing..." : "Analyze Growth"}
+        </button>
       </div>
-
-      {statusMessage && (
-        <div className="mb-4 p-3 bg-blue-50 border-2 border-blue-200 rounded-lg">
-          <p className="text-sm text-blue-900">{statusMessage}</p>
-        </div>
-      )}
 
       {error && (
         <div className="mb-4 p-4 bg-red-50 border-2 border-red-500 rounded-lg">
@@ -1064,328 +671,270 @@ function AgentView({
         </div>
       )}
 
-      {blockingInfo && (
-        <div className="mb-4 p-4 bg-red-50 border-2 border-red-400 rounded-lg">
-          <h3 className="font-semibold text-red-800">{blockingInfo.title}</h3>
-          <p className="text-sm text-red-700 mt-1">{blockingInfo.message}</p>
-          {blockingInfo.action && (
-            <p className="text-xs text-red-700 mt-2">{blockingInfo.action}</p>
-          )}
+      {!isAnalyzing && !results && (
+        <p className="text-gray-600">Click "Analyze Growth" to discover business opportunities for your craft.</p>
+      )}
+
+      {results && (
+        <div className="space-y-6">
+          <h3 className="text-xl font-bold">Growth Analysis Complete</h3>
+          <pre className="text-xs bg-gray-50 p-3 border rounded overflow-auto">{JSON.stringify(results, null, 2)}</pre>
         </div>
-      )}
-
-      {!isSearching && recentResults.length > 0 && results.length === 0 && (
-        <div className="mb-6">
-          <div className="flex items-center justify-between mb-2">
-            <h3 className="text-lg font-semibold">Recent</h3>
-            <button onClick={loadRecent} disabled={loadingRecent} className="px-3 py-1 text-sm bg-black text-white rounded hover:bg-gray-800 disabled:bg-gray-400">{loadingRecent ? "Refreshing..." : "Refresh"}</button>
-          </div>
-          <pre className="text-xs bg-gray-50 p-3 border rounded overflow-auto">{JSON.stringify(recentResults, null, 2)}</pre>
-        </div>
-      )}
-
-      {isSearching && (
-        <div className="mb-4 p-4 bg-yellow-50 border-2 border-yellow-200 rounded-lg">
-          <div className="flex items-center gap-2">
-            <div className="w-2 h-2 bg-yellow-500 rounded-full animate-pulse" />
-            <p className="font-semibold text-yellow-800">{buttonText}...</p>
-          </div>
-          <p className="text-sm text-yellow-700 mt-2">Click any log entry below to see details</p>
-        </div>
-      )}
-
-      {searchLogs.length > 0 && (
-        <div className="mb-6">
-          <h3 className="text-lg font-semibold mb-2">Work Log</h3>
-          <div className="space-y-2 max-h-96 overflow-y-auto">
-            {searchLogs.map((log, idx) => (
-              <div
-                key={idx}
-                onClick={() => setExpandedLog(expandedLog === idx ? null : idx)}
-                className={`p-3 border-2 rounded-lg cursor-pointer transition-colors ${
-                  expandedLog === idx ? "border-black bg-gray-50" : "border-gray-200 hover:border-gray-400"
-                }`}
-              >
-                <div className="flex justify-between items-start">
-                  <div className="flex-1">
-                    <div className="flex items-center gap-2">
-                      <span className="text-sm font-semibold">{log.agent}</span>
-                      <span className="text-xs text-gray-500">{new Date(log.timestamp).toLocaleTimeString()}</span>
-                    </div>
-                    <p className="text-sm mt-1">{log.message}</p>
-                    {expandedLog === idx && (
-                      <div className="mt-2 p-2 bg-gray-100 rounded text-xs">
-                        <p><strong>Step:</strong> {log.step}</p>
-                        <pre className="mt-1 overflow-auto text-xs">{JSON.stringify(log.data, null, 2)}</pre>
-                      </div>
-                    )}
-                  </div>
-                  <span className="text-xs text-gray-400">{expandedLog === idx ? "▲" : "▼"}</span>
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {results.length > 0 && (
-        <div>
-          <h3 className="text-lg font-semibold mb-2">Results ({results.length})</h3>
-          <div className="grid gap-4">
-            {results.map((item: any, idx: number) => (
-              <div key={idx} className="border-2 border-black p-4 rounded-lg">
-                <h4 className="font-bold">{item.name || item.title || `Item ${idx + 1}`}</h4>
-                {item.description && <p className="text-sm mt-1">{item.description}</p>}
-                {item.location && (
-                  <p className="text-sm text-gray-600">
-                    📍 {item.location.city || item.location}, {item.location.state || ""}
-                  </p>
-                )}
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {!isSearching && results.length === 0 && searchLogs.length > 0 && !error && (
-        <p className="text-gray-600">No results returned. Try refining your inputs or check the work log above for clues.</p>
-      )}
-
-      {!isSearching && searchLogs.length === 0 && results.length === 0 && (
-        <p className="text-gray-600">Click "{buttonText}" to begin</p>
       )}
     </div>
   );
 }
 
-const buildGrowthAnalysisRequest = (answers: Record<string, string>) => {
-  const ans = answers || {};
-  const craftTypeCandidate =
-    (ans.craft_type || ans.craft || "").trim() ||
-    (ans.focus || "").trim() ||
-    "pottery";
-  const specializationCandidate =
-    (ans.tradition || ans.specialization || ans.expertise || "").trim() ||
-    "handmade pottery";
+function GrowthMarketerView({ answers }: { answers?: Record<string, string> }) {
+  const [isAnalyzing, setIsAnalyzing] = React.useState(false);
+  const [results, setResults] = React.useState<any>(null);
+  const [error, setError] = React.useState<string | null>(null);
 
-  const craftType =
-    craftTypeCandidate.length >= 2 ? craftTypeCandidate : "pottery";
-  const specialization =
-    specializationCandidate.length >= 2 ? specializationCandidate : "handmade pottery";
-  const productText = (ans.products || "hand-thrown bowl").trim();
-  const currentProducts = productText
-    .split(",")
-    .map((value) => value.trim())
-    .filter(Boolean);
-  const locationSegments = (ans.location || "")
-    .split(",")
-    .map((segment) => segment.trim());
+  const analyzeGrowth = async () => {
+    setIsAnalyzing(true);
+    setResults(null);
+    setError(null);
 
-  return {
-    craft_type: craftType,
-    specialization,
-    current_products:
-      currentProducts.length > 0 ? currentProducts : ["hand-thrown bowl"],
-    location: {
-      city: locationSegments[0] || "Jaipur",
-      state: locationSegments[1] || "Rajasthan"
+    try {
+      const userAnswers = answers || JSON.parse(localStorage.getItem("questionnaireAnswers") || "{}");
+
+      const response = await fetch(buildApiUrl("/agents/growth/analyze"), {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          craft_type: userAnswers.craft_type || "pottery",
+          specialization: "traditional handmade",
+          current_products: (userAnswers.products || "plates,vases,bowls").split(",").map((s: string) => s.trim()),
+          location: {
+            city: userAnswers.location?.split(",")[0] || "Jaipur",
+            state: userAnswers.location?.split(",")[1] || "Rajasthan"
+          }
+        })
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({ detail: `HTTP ${response.status}: ${response.statusText}` }));
+        throw new Error(errorData.detail || `Request failed: ${response.status}`);
+      }
+
+      const result = await response.json();
+      setResults(result);
+    } catch (error: any) {
+      const errorMessage = error?.message || "Failed to analyze growth.";
+      setError(errorMessage);
+      console.error("Analysis error:", error);
+    } finally {
+      setIsAnalyzing(false);
     }
   };
-};
 
-function OpportunitiesView({ answers }: { answers?: Record<string, string> }) {
   return (
-    <AgentView
-      title="Opportunities"
-      endpoint="growth/analyze"
-      buttonText="Analyze Opportunities"
-      answers={answers}
-      requestBuilder={buildGrowthAnalysisRequest}
-    />
-  );
-}
+    <div>
+      <div className="flex justify-between items-center mb-4">
+        <h2 className="text-2xl font-bold">Growth Marketer</h2>
+        <button
+          onClick={analyzeGrowth}
+          disabled={isAnalyzing}
+          className="px-4 py-2 bg-black text-white rounded hover:bg-gray-800 disabled:bg-gray-400"
+        >
+          {isAnalyzing ? "Analyzing..." : "Market Analysis"}
+        </button>
+      </div>
 
-function GrowthMarketerView({ answers }: { answers?: Record<string, string> }) {
-  return (
-    <AgentView
-      title="Growth Marketer"
-      endpoint="growth/analyze"
-      buttonText="Analyze Growth"
-      answers={answers}
-      requestBuilder={buildGrowthAnalysisRequest}
-    />
+      {error && (
+        <div className="mb-4 p-4 bg-red-50 border-2 border-red-500 rounded-lg">
+          <div className="flex items-center gap-2">
+            <span className="text-red-600 font-bold">⚠️</span>
+            <p className="font-semibold text-red-800">Error: {error}</p>
+          </div>
+        </div>
+      )}
+
+      {!isAnalyzing && !results && (
+        <p className="text-gray-600">Click "Market Analysis" to get detailed marketing insights for your craft.</p>
+      )}
+
+      {results && (
+        <div className="space-y-6">
+          <h3 className="text-xl font-bold">Market Analysis Complete</h3>
+          <pre className="text-xs bg-gray-50 p-3 border rounded overflow-auto">{JSON.stringify(results, null, 2)}</pre>
+        </div>
+      )}
+    </div>
   );
 }
 
 function EventsView({ answers }: { answers?: Record<string, string> }) {
-  const [city, setCity] = React.useState("");
-  const [dateFrom, setDateFrom] = React.useState("");
-  const [dateTo, setDateTo] = React.useState("");
-  const [recent, setRecent] = React.useState<any[]>([]);
-  const [loading, setLoading] = React.useState(false);
+  const [isSearching, setIsSearching] = React.useState(false);
+  const [results, setResults] = React.useState<any>(null);
   const [error, setError] = React.useState<string | null>(null);
 
-  const loadRecent = React.useCallback(async () => {
-    try {
-      setLoading(true);
-      setError(null);
-      const params = new URLSearchParams();
-      if (city) params.set("city", city);
-      if (dateFrom) params.set("date_from", dateFrom);
-      if (dateTo) params.set("date_to", dateTo);
-      const url = buildApiUrl(`/agents/events/recent${params.toString() ? `?${params.toString()}` : ""}`);
-      const resp = await fetch(url);
-      if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
-      const data = await resp.json();
-      setRecent(data.results || data.events || []);
-    } catch (e: any) {
-      setError(e?.message || "Failed to load recent events");
-    } finally {
-      setLoading(false);
-    }
-  }, [city, dateFrom, dateTo]);
+  const searchEvents = async () => {
+    setIsSearching(true);
+    setResults(null);
+    setError(null);
 
-  return (
-    <div className="space-y-6">
-      <div className="border-2 border-black p-4 rounded">
-        <div className="flex flex-col md:flex-row gap-3 md:items-end">
-          <div className="flex-1">
-            <label className="text-xs font-semibold">City</label>
-            <input className="w-full border border-gray-300 rounded p-2 text-sm" placeholder="e.g. Jaipur" value={city} onChange={(e) => setCity(e.target.value)} />
-          </div>
-          <div>
-            <label className="text-xs font-semibold">From (YYYY-MM-DD)</label>
-            <input className="border border-gray-300 rounded p-2 text-sm" placeholder="YYYY-MM-DD" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)} />
-          </div>
-          <div>
-            <label className="text-xs font-semibold">To (YYYY-MM-DD)</label>
-            <input className="border border-gray-300 rounded p-2 text-sm" placeholder="YYYY-MM-DD" value={dateTo} onChange={(e) => setDateTo(e.target.value)} />
-          </div>
-          <button onClick={loadRecent} disabled={loading} className="px-3 py-2 bg-black text-white rounded hover:bg-gray-800 disabled:bg-gray-400">{loading ? "Loading..." : "Load Recent"}</button>
-        </div>
-        {error && (
-          <div className="mt-2 p-2 bg-red-50 border-2 border-red-500 rounded"><p className="text-sm text-red-800 font-semibold">Error: {error}</p></div>
-        )}
-        {recent.length > 0 && (
-          <div className="mt-3">
-            <h3 className="text-lg font-semibold">Recent Events</h3>
-            <pre className="text-xs bg-gray-50 p-3 border rounded overflow-auto">{JSON.stringify(recent, null, 2)}</pre>
-          </div>
-        )}
-      </div>
-      <AgentView
-        title="Events"
-        endpoint="events/search"
-        buttonText="Find Events"
-        answers={answers}
-        requestBuilder={(ans) => ({
-          craft_type: ans.craft_type || "pottery",
+    try {
+      const userAnswers = answers || JSON.parse(localStorage.getItem("questionnaireAnswers") || "{}");
+
+      const response = await fetch(buildApiUrl("/agents/events/search"), {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          craft_type: userAnswers.craft_type || "pottery",
           location: {
-            city: ans.location?.split(",")[0] || "Jaipur",
-            state: ans.location?.split(",")[1] || "Rajasthan"
+            city: userAnswers.location?.split(",")[0] || "Jaipur",
+            state: userAnswers.location?.split(",")[1] || "Rajasthan"
           },
           travel_radius_km: 100
-        })}
-      />
+        })
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({ detail: `HTTP ${response.status}: ${response.statusText}` }));
+        throw new Error(errorData.detail || `Request failed: ${response.status}`);
+      }
+
+      const result = await response.json();
+      setResults(result);
+    } catch (error: any) {
+      const errorMessage = error?.message || "Failed to find events.";
+      setError(errorMessage);
+      console.error("Search error:", error);
+    } finally {
+      setIsSearching(false);
+    }
+  };
+
+  return (
+    <div>
+      <div className="flex justify-between items-center mb-4">
+        <h2 className="text-2xl font-bold">Event Discovery</h2>
+        <button
+          onClick={searchEvents}
+          disabled={isSearching}
+          className="px-4 py-2 bg-black text-white rounded hover:bg-gray-800 disabled:bg-gray-400"
+        >
+          {isSearching ? "Searching..." : "Find Events"}
+        </button>
+      </div>
+
+      {error && (
+        <div className="mb-4 p-4 bg-red-50 border-2 border-red-500 rounded-lg">
+          <div className="flex items-center gap-2">
+            <span className="text-red-600 font-bold">⚠️</span>
+            <p className="font-semibold text-red-800">Error: {error}</p>
+          </div>
+        </div>
+      )}
+
+      {!isSearching && !results && (
+        <p className="text-gray-600">Click "Find Events" to discover craft fairs, exhibitions, and opportunities for your products.</p>
+      )}
+
+      {results && (
+        <div className="space-y-6">
+          <h3 className="text-xl font-bold">Events Found</h3>
+          <pre className="text-xs bg-gray-50 p-3 border rounded overflow-auto">{JSON.stringify(results, null, 2)}</pre>
+        </div>
+      )}
     </div>
   );
 }
 
 function MaterialsView({ answers }: { answers?: Record<string, string> }) {
+  const [isSearching, setIsSearching] = React.useState(false);
+  const [results, setResults] = React.useState<any>(null);
+  const [error, setError] = React.useState<string | null>(null);
+
+  const searchMaterials = async () => {
+    setIsSearching(true);
+    setResults(null);
+    setError(null);
+
+    try {
+      const userAnswers = answers || JSON.parse(localStorage.getItem("questionnaireAnswers") || "{}");
+
+      const response = await fetch(buildApiUrl("/agents/supply/search"), {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          craft_type: userAnswers.craft_type || "pottery",
+          supplies_needed: (userAnswers.supplies || "clay,glazes").split(",").map((s: string) => s.trim()),
+          location: {
+            city: userAnswers.location?.split(",")[0] || "Jaipur",
+            state: userAnswers.location?.split(",")[1] || "Rajasthan"
+          }
+        })
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({ detail: `HTTP ${response.status}: ${response.statusText}` }));
+        throw new Error(errorData.detail || `Request failed: ${response.status}`);
+      }
+
+      const result = await response.json();
+      setResults(result);
+    } catch (error: any) {
+      const errorMessage = error?.message || "Failed to find materials.";
+      setError(errorMessage);
+      console.error("Search error:", error);
+    } finally {
+      setIsSearching(false);
+    }
+  };
+
   return (
-    <AgentView
-      title="Materials & Equipment"
-      endpoint="supply/search"
-      buttonText="Find Materials"
-      answers={answers}
-      requestBuilder={(ans) => ({
-        craft_type: ans.craft_type || "pottery",
-        supplies_needed: (ans.supplies || "").split(",").map((s: string) => s.trim()).filter(Boolean),
-        location: {
-          city: ans.location?.split(",")[0] || "Jaipur",
-          state: ans.location?.split(",")[1] || "Rajasthan"
-        }
-      })}
-    />
+    <div>
+      <div className="flex justify-between items-center mb-4">
+        <h2 className="text-2xl font-bold">Materials & Equipment</h2>
+        <button
+          onClick={searchMaterials}
+          disabled={isSearching}
+          className="px-4 py-2 bg-black text-white rounded hover:bg-gray-800 disabled:bg-gray-400"
+        >
+          {isSearching ? "Searching..." : "Find Materials"}
+        </button>
+      </div>
+
+      {error && (
+        <div className="mb-4 p-4 bg-red-50 border-2 border-red-500 rounded-lg">
+          <div className="flex items-center gap-2">
+            <span className="text-red-600 font-bold">⚠️</span>
+            <p className="font-semibold text-red-800">Error: {error}</p>
+          </div>
+        </div>
+      )}
+
+      {!isSearching && !results && (
+        <p className="text-gray-600">Click "Find Materials" to discover suppliers for craft materials and equipment.</p>
+      )}
+
+      {results && (
+        <div className="space-y-6">
+          <h3 className="text-xl font-bold">Materials Found</h3>
+          <pre className="text-xs bg-gray-50 p-3 border rounded overflow-auto">{JSON.stringify(results, null, 2)}</pre>
+        </div>
+      )}
+    </div>
   );
 }
 
 function ContextView({ answers }: { answers: Record<string, string> }) {
-  const [notes, setNotes] = React.useState("");
-  const [loading, setLoading] = React.useState(false);
-  const [saving, setSaving] = React.useState(false);
-  const [error, setError] = React.useState<string | null>(null);
-
-  const loadContext = React.useCallback(async () => {
-    try {
-      setLoading(true);
-      const resp = await fetch(buildApiUrl("/context"));
-      if (resp.ok) {
-        const data = await resp.json();
-        const s = (data?.context?.notes as string) || "";
-        setNotes(s);
-      }
-    } catch (e: any) {
-      setError(e?.message || "Failed to load context");
-    } finally {
-      setLoading(false);
-    }
-  }, []);
-
-  const saveContext = React.useCallback(async () => {
-    try {
-      setSaving(true);
-      setError(null);
-      const resp = await fetch(buildApiUrl("/context"), {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ context: { notes } })
-      });
-      if (!resp.ok) {
-        const err = await resp.json().catch(() => ({}));
-        throw new Error(err.detail || `HTTP ${resp.status}`);
-      }
-    } catch (e: any) {
-      setError(e?.message || "Failed to save context");
-    } finally {
-      setSaving(false);
-    }
-  }, [notes]);
-
-  React.useEffect(() => { loadContext(); }, [loadContext]);
-
   return (
     <div>
-      <h2 className="text-2xl font-bold mb-4">Context</h2>
-      {error && (
-        <div className="mb-4 p-3 bg-red-50 border-2 border-red-500 rounded-lg">
-          <p className="font-semibold text-red-800">Error: {error}</p>
-        </div>
-      )}
+      <h2 className="text-2xl font-bold mb-4">Business Profile</h2>
       <div className="grid gap-4">
         <div className="border border-black p-4 rounded">
-          <h3 className="font-semibold mb-2">Questionnaire</h3>
+          <h3 className="font-semibold mb-2">Questionnaire Answers</h3>
           <div className="grid md:grid-cols-2 gap-3 text-sm">
             {Object.entries(answers).map(([key, value]) => (
               <div key={key}>
                 <div className="font-semibold capitalize">{key.replace("_", " ")}</div>
-                <div className="text-gray-600">{value}</div>
+                <div className="text-gray-600">{value || "Not specified"}</div>
               </div>
             ))}
           </div>
-        </div>
-        <div className="border border-black p-4 rounded">
-          <div className="flex items-center justify-between">
-            <h3 className="font-semibold">Notes</h3>
-            <button onClick={saveContext} disabled={saving} className="px-3 py-1 text-sm bg-black text-white rounded hover:bg-gray-800 disabled:bg-gray-400">{saving ? "Saving..." : "Save"}</button>
-          </div>
-          <textarea
-            className="w-full border border-gray-300 rounded mt-2 p-2 text-sm"
-            rows={8}
-            placeholder={loading ? "Loading..." : "Add any additional context here..."}
-            value={notes}
-            onChange={(e) => setNotes(e.target.value)}
-          />
         </div>
       </div>
     </div>
@@ -1393,205 +942,20 @@ function ContextView({ answers }: { answers: Record<string, string> }) {
 }
 
 function SettingsView() {
-  const [flightCheck, setFlightCheck] = React.useState<any>(null);
-  const [loading, setLoading] = React.useState(false);
-
-  // Auto-load flight check on mount
-  React.useEffect(() => {
-    runFlightCheck();
-  }, []);
-
-  const runFlightCheck = async () => {
-    setLoading(true);
-    try {
-      const response = await fetch(buildApiUrl("/health/flight-check"));
-      if (!response.ok) {
-        // Try to parse error response, but still show structure
-        const errorData = await response.json().catch(() => null);
-        setFlightCheck({
-          overall_status: "error",
-          timestamp: new Date().toISOString(),
-          checks: errorData?.checks || {},
-          errors: [{
-            component: "flight_check",
-            status: "error",
-            message: errorData?.message || `HTTP ${response.status}: ${response.statusText}`,
-            details: { error: `HTTP ${response.status}`, statusText: response.statusText }
-          }, ...(errorData?.errors || [])]
-        });
-        return;
-      }
-      const data = await response.json();
-      setFlightCheck(data);
-    } catch (error: any) {
-      console.error("Flight check error:", error);
-      // Even on network error, show structure with unknown statuses
-      setFlightCheck({
-        overall_status: "error",
-        timestamp: new Date().toISOString(),
-        checks: {
-          llm_providers: {
-            status: "unknown",
-            message: "Connection failed - backend may not be running",
-            details: { error: "Network error", url: buildApiUrl("/health/flight-check") }
-          },
-          llm_generation: {
-            status: "unknown",
-            message: "Cannot test - backend unreachable",
-            details: { error: error?.message || "Failed to fetch" }
-          },
-          vector_store: {
-            status: "unknown",
-            message: "Cannot check - backend unreachable",
-            details: { error: error?.message || "Failed to fetch" }
-          },
-          serpapi: {
-            status: "unknown",
-            message: "Cannot check - backend unreachable",
-            details: { error: error?.message || "Failed to fetch" }
-          },
-          websocket: {
-            status: "unknown",
-            message: "Cannot check - backend unreachable",
-            details: { error: error?.message || "Failed to fetch" }
-          }
-        },
-        errors: [{
-          component: "flight_check",
-          status: "error",
-          message: error?.message || `Failed to connect to backend. Is the server running on ${config.apiUrl}?`,
-          details: { 
-            error: String(error),
-            suggestion: "Make sure the backend server is running: python -m uvicorn backend.main:app --reload"
-          }
-        }]
-      });
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const getStatusColor = (status: string) => {
-    switch (status) {
-      case "healthy": return "bg-green-100 border-green-500 text-green-800";
-      case "unhealthy": return "bg-red-100 border-red-500 text-red-800";
-      case "warning": return "bg-yellow-100 border-yellow-500 text-yellow-800";
-      case "degraded": return "bg-orange-100 border-orange-500 text-orange-800";
-      default: return "bg-gray-100 border-gray-500 text-gray-800";
-    }
-  };
-
   return (
     <div>
-      <div className="flex justify-between items-center mb-4">
-        <h2 className="text-2xl font-bold">Settings & Flight Check</h2>
-        <p className="text-sm text-gray-600">Flight check runs automatically on page load</p>
+      <h2 className="text-2xl font-bold mb-4">Settings</h2>
+      <div className="space-y-4">
+        <div className="border-2 border-black p-4 rounded">
+          <h3 className="font-semibold mb-2">Application Status</h3>
+          <p className="text-green-600">Artisan Hub is running and ready to assist with your craft business.</p>
+        </div>
+        <div className="border-2 border-black p-4 rounded">
+          <h3 className="font-semibold mb-2">API Endpoints</h3>
+          <p className="text-sm text-gray-600">Backend: {config.apiUrl}</p>
+          <p className="text-sm text-gray-600">WebSocket: {config.wsUrl}</p>
+        </div>
       </div>
-
-      {flightCheck && (
-        <div className="space-y-4">
-          <div className={`p-4 border-2 rounded-lg ${getStatusColor(flightCheck.overall_status)}`}>
-            <div className="flex justify-between items-center mb-2">
-              <div>
-                <h3 className="font-bold text-lg">
-                  Overall Status: {flightCheck.overall_status.toUpperCase()}
-                </h3>
-                {flightCheck.timestamp && (
-                  <p className="text-sm mt-1">{new Date(flightCheck.timestamp).toLocaleString()}</p>
-                )}
-              </div>
-              <button
-                onClick={runFlightCheck}
-                disabled={loading}
-                className="px-3 py-1 text-sm bg-black text-white rounded hover:bg-gray-800 disabled:bg-gray-400"
-              >
-                {loading ? "Refreshing..." : "Refresh"}
-              </button>
-            </div>
-          </div>
-
-          {flightCheck.errors && flightCheck.errors.length > 0 && (
-            <div className="p-4 bg-red-50 border-2 border-red-500 rounded-lg">
-              <h3 className="font-bold text-red-800 mb-2">⚠️ Errors Found:</h3>
-              {flightCheck.errors.map((err: any, idx: number) => (
-                <div key={idx} className="mb-2 p-2 bg-red-100 rounded">
-                  <p className="font-semibold text-red-800">{err.component}: {err.message}</p>
-                  {err.details && Object.keys(err.details).length > 0 && (
-                    <pre className="text-xs mt-1 text-red-700">
-                      {JSON.stringify(err.details, null, 2)}
-                    </pre>
-                  )}
-                </div>
-              ))}
-            </div>
-          )}
-
-          <div className="space-y-3">
-            <h3 className="font-semibold text-lg">System Checks:</h3>
-            {Object.keys(flightCheck.checks || {}).length === 0 ? (
-              <p className="text-gray-600">No checks available</p>
-            ) : (
-              Object.entries(flightCheck.checks || {}).map(([key, check]: [string, any]) => {
-                // Skip duplicate serpapi entry if tavily exists
-                if (key === "serpapi" && flightCheck.checks?.tavily) {
-                  return null;
-                }
-                
-                const statusDisplay = check.status === "healthy" ? "✅ PASS" : 
-                                     check.status === "unhealthy" ? "❌ FAIL" :
-                                     check.status === "warning" ? "⚠️ WARNING" :
-                                     check.status === "degraded" ? "⚠️ DEGRADED" : "❓ UNKNOWN";
-                
-                return (
-                  <div
-                    key={key}
-                    className={`p-4 border-2 rounded-lg ${getStatusColor(check.status)}`}
-                  >
-                    <div className="flex justify-between items-start mb-2">
-                      <div className="flex-1">
-                        <h4 className="font-semibold capitalize text-lg">
-                          {key.replace("_", " ").split(" ").map((w: string) => 
-                            w.charAt(0).toUpperCase() + w.slice(1)
-                          ).join(" ")}
-                        </h4>
-                        <p className="text-sm mt-1">{check.message || "No message"}</p>
-                      </div>
-                      <div className="ml-4 text-right">
-                        <span className="text-sm font-bold block">{statusDisplay}</span>
-                        <span className="text-xs text-gray-600">{check.status}</span>
-                      </div>
-                    </div>
-                    {check.details && Object.keys(check.details).length > 0 && (
-                      <div className="mt-2 text-xs bg-white bg-opacity-50 p-2 rounded">
-                        <details>
-                          <summary className="cursor-pointer font-semibold mb-1">Show Details</summary>
-                          <pre className="whitespace-pre-wrap mt-1">
-                            {JSON.stringify(check.details, null, 2)}
-                          </pre>
-                        </details>
-                      </div>
-                    )}
-                  </div>
-                );
-              }).filter(Boolean)
-            )}
-          </div>
-        </div>
-      )}
-
-      {loading && !flightCheck && (
-        <div className="text-center py-8">
-          <p className="text-gray-600">Running flight check...</p>
-        </div>
-      )}
-
-      {!loading && !flightCheck && (
-        <div className="text-center py-8">
-          <p className="text-gray-600 mb-4">Loading flight check...</p>
-        </div>
-      )}
     </div>
   );
 }
-
-

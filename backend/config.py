@@ -15,22 +15,26 @@ from backend.constants import (
 class Settings(BaseSettings):
     """Application settings"""
 
-    # LLM Provider Configuration
-    llm_provider: str = "groq"  # Options: "groq", "openrouter", "gemini", "auto"
+    # LLM Provider Configuration - FREE TRIAL OPTIMIZED! 💰
+    llm_provider: str = "groq"  # Start with cheap Groq, fallback to others
     groq_api_key: Optional[str] = None
 
-    # Cloud LLM Configuration
+    # Cloud LLM Configuration - Cost-optimized free trials
     openrouter_api_key: Optional[str] = None
     openrouter_base_url: str = "https://openrouter.ai/api/v1"
-    openrouter_reasoning_model: str = "openai/gpt-4o-mini"
-    openrouter_fast_model: str = "openai/gpt-4o-mini"
+    openrouter_reasoning_model: str = "microsoft/wizardlm-2-8x22b"  # CHEAP but good quality
+    openrouter_fast_model: str = "microsoft/wizardlm-2-8x22b"  # CHEAP fast model
     gemini_api_key: Optional[str] = None
-    gemini_model: str = "gemini-1.5-flash"
+    gemini_model: str = "gemini-1.5-flash"  # Use basic flash, not 002 (more expensive)
 
-    # Model Configuration
+    # Model Configuration - COST-EFFECTIVE free trial setup
     embedding_model: str = EMBEDDING_MODEL_DEFAULT
-    reasoning_model: str = REASONING_MODEL_DEFAULT
-    fast_model: str = FAST_MODEL_DEFAULT
+    reasoning_model: str = "llama-3.1-70b-versatile"  # Groq's best cheap model
+    fast_model: str = "llama-3.1-8b-instant"  # Groq's fast cheap model
+
+    # Cost optimization settings
+    enable_expensive_models: bool = False  # Set to True ONLY when you have credits
+    max_tokens_per_request: int = 2000  # Limit expensive API calls
 
     # Tavily API Configuration
     tavily_api_key: Optional[str] = None

@@ -81,17 +81,20 @@ class OllamaClient:
         self,
         prompt: str,
         model: Optional[str] = None,
-        system: Optional[str] = None,
+        system: Optional[str],
         temperature: float = 0.7,
         stream: bool = False,
     ) -> str:
         """
-        Generate a completion via the active provider.
+        Generate a completion via the active provider with cost-optimized fallback.
         """
         target_model = model or self.reasoning_model
         errors: List[str] = []
 
-        for provider in self._provider_chain():
+        # Check complexity and decide if expensive models are needed
+        is_complex_task = self._is_complex_task(prompt, system)
+
+        for provider in self._provider_chain(is_complex_task):
             try:
                 if provider == "groq":
                     return await self._generate_groq(
@@ -125,8 +128,22 @@ class OllamaClient:
                 errors.append(msg)
                 continue
 
+        # If all providers failed, try a final cheap fallback
+        try:
+            if self.groq_api_key:
+                logger.warning("All providers failed, trying Groq one more time with shorter response...")
+                return await self._generate_groq(
+                    prompt=prompt[:1000] + "...",  # Truncate prompt
+                    model=self.fast_model,  # Use fast model
+                    system=system,
+                    temperature=temperature,
+                )
+        except Exception as final_exc:
+            errors.append(f"Final Groq fallback failed: {final_exc}")
+
         raise RuntimeError(
-            "All LLM providers failed. Tried: Groq, OpenRouter, Gemini. "
+            "All LLM providers failed. Free trial limits likely exceeded. "
+            + "Consider enabling only one provider and waiting for rate limits to reset. "
             + " | ".join(errors)
         )
 
@@ -188,9 +205,33 @@ class OllamaClient:
     # Internal helpers
     # ------------------------------------------------------------------
 
-    def _provider_chain(self) -> List[str]:
+    def _is_complex_task(self, prompt: str, system: Optional[str]) -> bool:
+        """Determine if this task requires expensive AI models"""
+        # Check if expensive models are explicitly disabled
+        if not getattr(settings, 'enable_expensive_models', False):
+            return False
+
+        # Simple heuristics for complexity
+        total_length = len(prompt) + (len(system) if system else 0)
+
+        # Long prompts = probably complex
+        if total_length > 1000:
+            return True
+
+        # Keywords indicating complex analysis
+        complex_keywords = [
+            'forecast', 'predict', 'analyze', 'strategy', 'intelligence',
+            'competitive', 'market', 'optimization', 'risk', 'automated'
+        ]
+
+        combined_text = (prompt + (system or "")).lower()
+        keyword_count = sum(1 for keyword in complex_keywords if keyword in combined_text)
+
+        return keyword_count >= 2  # 2+ complex keywords = complex task
+
+    def _provider_chain(self, is_complex_task: bool = False) -> List[str]:
         """
-        Ordered list of providers to try based on configured API keys.
+        Ordered list of providers to try based on configured API keys and cost optimization.
         """
         chain: List[str] = []
         preferred: List[str] = []
@@ -198,7 +239,13 @@ class OllamaClient:
         if self.provider in {"groq", "openrouter", "gemini"}:
             preferred.append(self.provider)
 
-        ordering = preferred + ["groq", "openrouter", "gemini"]
+        if is_complex_task:
+            # For complex tasks, prioritize capability over cost
+            ordering = preferred + ["groq", "openrouter", "gemini"]
+        else:
+            # For simple tasks, prioritize cost-effectiveness
+            ordering = ["groq", "openrouter", "gemini"]  # No preference, first available
+
         seen = set()
 
         for provider in ordering:
@@ -209,12 +256,18 @@ class OllamaClient:
             if provider == "groq" and self.groq_api_key:
                 chain.append("groq")
             elif provider == "openrouter" and self.openrouter_api_key:
+                # For complex tasks, prefer better OpenRouter models if expensive models enabled
+                if is_complex_task and hasattr(settings, 'openrouter_reasoning_model'):
+                    # Already configured for better models in settings
+                    pass
                 chain.append("openrouter")
             elif provider == "gemini" and self.gemini_api_key:
-                chain.append("gemini")
+                # Only use Gemini for complex tasks if expensive models enabled
+                if is_complex_task or self.provider == "gemini":
+                    chain.append("gemini")
 
         if not chain:
-            raise RuntimeError("No cloud LLM provider configured. Set GROQ_API_KEY, OPENROUTER_API_KEY, or GEMINI_API_KEY.")
+            raise RuntimeError("No cloud LLM provider configured. Set at least GROQ_API_KEY for free trial.")
 
         return chain
 

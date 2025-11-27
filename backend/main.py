@@ -79,6 +79,12 @@ For issues, questions, or feature requests:
 # Setup logging
 logger.info(f"Starting Artisan Hub API v1.0.0")
 logger.info(f"Environment: {settings.environment}")
+
+# Force enable heavy features for now (temporary)
+import os
+os.environ['ENABLE_HEAVY_FEATURES'] = 'true'
+settings.enable_heavy_features = True
+
 logger.info(f"Heavy features enabled: {settings.enable_heavy_features}")
 
 # CORS Configuration - Use settings
