@@ -23,11 +23,12 @@ async def send_message(request: ChatRequest):
         context = ""
         for msg in request.conversation_history[-5:]:  # Last 5 messages
             context += f"{msg.role}: {msg.content}\n"
-        
+
         context += f"user: {request.message}\n"
-        
+
         # Use fast model for simple queries, reasoning model for complex ones
         async with OllamaClient() as client:
+            await client.ensure_available()
             # Simple classification to route to correct model
             classification_prompt = f"Classify this query as 'simple' or 'complex': {request.message}"
             classification = await client.fast_task(classification_prompt)
@@ -61,7 +62,11 @@ and connect them with relevant events. Be concise, helpful, and empathetic."""
             model_used=model_used,
             processing_time=processing_time
         )
-    
+
+    except RuntimeError as e:
+        # Surface missing provider configuration as a 503 instead of a 500/502
+        logger.error(f"Chat error: {e}")
+        raise HTTPException(status_code=503, detail=str(e))
     except Exception as e:
         logger.error(f"Chat error: {e}")
         raise HTTPException(status_code=500, detail=str(e))
