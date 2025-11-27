@@ -1,7 +1,7 @@
 """
 Profile Analyst Agent - Infers artisan needs from organic conversation
 """
-from typing import Dict
+from typing import Dict, List
 from backend.agents.base_agent import BaseAgent
 from loguru import logger
 import json
@@ -82,6 +82,11 @@ class ProfileAnalystAgent(BaseAgent):
             "jhunjhunu": "traditional crafts"
         }
 
+        # Defaults to ensure variables are always defined
+        basic_info: Dict = {}
+        needs_info: Dict = {}
+        adjacencies: List[str] = []
+
         # Check if input is just "City CITYNAME" or similar
         if input_text.lower().startswith("city ") and len(input_text.split()) == 2:
             city_name = input_text.split()[1].lower()
@@ -105,7 +110,8 @@ class ProfileAnalystAgent(BaseAgent):
                 needs_info = self._get_craft_defaults(CITY_CRAFT_MAPPING[city_name])
                 adjacencies = self._get_craft_adjacencies(CITY_CRAFT_MAPPING[city_name])
 
-        else:
+        # If not matched to a known city pattern, perform standard analysis
+        if not basic_info:
             # Standard analysis using LLM
             # Step 1: Extract basic information
             extraction_prompt = f"""Analyze this artisan's introduction and extract structured information.

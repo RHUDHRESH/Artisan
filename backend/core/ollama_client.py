@@ -81,7 +81,7 @@ class OllamaClient:
         self,
         prompt: str,
         model: Optional[str] = None,
-        system: Optional[str],
+        system: Optional[str] = None,
         temperature: float = 0.7,
         stream: bool = False,
     ) -> str:
