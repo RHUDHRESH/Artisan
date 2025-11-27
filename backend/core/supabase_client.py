@@ -1,6 +1,6 @@
 """
 Supabase Client for cloud database and authentication
-Optional - fallback to ChromaDB if not configured
+Optional - used when Supabase is configured (otherwise data stays local)
 """
 from typing import Optional, Dict, List, Any
 from loguru import logger

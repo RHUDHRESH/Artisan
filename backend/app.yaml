@@ -17,10 +17,11 @@ automatic_scaling:
 env_variables:
   # LLM Provider Configuration
   LLM_PROVIDER: "groq"
-  OLLAMA_BASE_URL: "http://ollama:11434"
+  GROQ_API_KEY: ""
+  OPENROUTER_API_KEY: ""
+  GEMINI_API_KEY: ""
 
   # Database
-  CHROMA_DB_PATH: "/tmp/chroma_db"
 
   # Server Configuration
   LOG_LEVEL: "INFO"

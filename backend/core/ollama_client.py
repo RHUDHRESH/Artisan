@@ -21,7 +21,6 @@ from backend.constants import (
     FAST_MODEL_DEFAULT,
     GEMINI_MODEL_DEFAULT,
     OPENROUTER_BASE_URL_DEFAULT,
-    OPENROUTER_EMBEDDING_MODEL_DEFAULT,
     OPENROUTER_FAST_MODEL_DEFAULT,
     OPENROUTER_REASONING_MODEL_DEFAULT,
     REASONING_MODEL_DEFAULT,
@@ -66,7 +65,11 @@ class OllamaClient:
         self.reasoning_model = settings.reasoning_model or REASONING_MODEL_DEFAULT
         self.fast_model = settings.fast_model or FAST_MODEL_DEFAULT
         self.embedding_model = settings.embedding_model or EMBEDDING_MODEL_DEFAULT
-        self.embedding_client = EmbeddingClient(self.embedding_model)
+        self.embedding_client = EmbeddingClient(
+            self.embedding_model,
+            api_key=self.openrouter_api_key,
+            base_url=self.openrouter_base_url,
+        )
 
     async def __aenter__(self):
         return self
@@ -155,59 +158,31 @@ class OllamaClient:
 
     async def embed(self, text: str) -> List[float]:
         """
-        Generate embeddings using OpenRouter when available, otherwise
-        fall back to the local SentenceTransformers backend.
+        Generate embeddings using cloud providers only (no local downloads).
         """
-        if self.openrouter_api_key:
-            try:
-                return await self._embed_openrouter(text)
-            except Exception as exc:  # noqa: BLE001
-                logger.warning(f"OpenRouter embeddings failed: {exc}; falling back to SentenceTransformers")
-
-        vector = await self.embedding_client.embed(text)
+        try:
+            vector = await self.embedding_client.embed(text)
+        except Exception as exc:  # noqa: BLE001
+            logger.error(f"Embedding generation failed: {exc}")
+            raise
         return vector  # Already converted to Python list
 
     async def health_check(self) -> bool:
         """
         Check whichever provider is configured.
         """
-        for provider in self._provider_chain():
-            try:
-                if provider == "groq":
-                    headers = self._groq_headers
-                    async with aiohttp.ClientSession() as session:
-                        async with session.get(
-                            f"{self.groq_api_base}/models",
-                            headers=headers,
-                            timeout=aiohttp.ClientTimeout(total=5),
-                        ) as response:
-                            if response.status == 200:
-                                return True
-                elif provider == "openrouter":
-                    headers = self._openrouter_headers
-                    async with aiohttp.ClientSession() as session:
-                        async with session.get(
-                            f"{self.openrouter_base_url}/models",
-                            headers=headers,
-                            timeout=aiohttp.ClientTimeout(total=5),
-                        ) as response:
-                            if response.status == 200:
-                                return True
-                elif provider == "gemini":
-                    params = {"key": self.gemini_api_key}
-                    async with aiohttp.ClientSession() as session:
-                        async with session.get(
-                            f"{self.gemini_base_url}/models",
-                            params=params,
-                            timeout=aiohttp.ClientTimeout(total=5),
-                        ) as response:
-                            if response.status == 200:
-                                return True
-            except Exception as exc:  # noqa: BLE001
-                logger.warning(f"{provider} health check failed: {exc}")
-                continue
+        statuses = await self.provider_statuses()
+        return any(statuses.values())
 
-        return False
+    async def provider_statuses(self) -> Dict[str, bool]:
+        """
+        Return per-provider availability without requiring local inference.
+        """
+        return {
+            "groq": await self._ping_provider("groq"),
+            "openrouter": await self._ping_provider("openrouter"),
+            "gemini": await self._ping_provider("gemini"),
+        }
 
     # ------------------------------------------------------------------
     # Internal helpers
@@ -218,14 +193,29 @@ class OllamaClient:
         Ordered list of providers to try based on configured API keys.
         """
         chain: List[str] = []
-        if self.groq_api_key:
-            chain.append("groq")
-        if self.openrouter_api_key:
-            chain.append("openrouter")
-        if self.gemini_api_key:
-            chain.append("gemini")
+        preferred: List[str] = []
+
+        if self.provider in {"groq", "openrouter", "gemini"}:
+            preferred.append(self.provider)
+
+        ordering = preferred + ["groq", "openrouter", "gemini"]
+        seen = set()
+
+        for provider in ordering:
+            if provider in seen:
+                continue
+            seen.add(provider)
+
+            if provider == "groq" and self.groq_api_key:
+                chain.append("groq")
+            elif provider == "openrouter" and self.openrouter_api_key:
+                chain.append("openrouter")
+            elif provider == "gemini" and self.gemini_api_key:
+                chain.append("gemini")
+
         if not chain:
             raise RuntimeError("No cloud LLM provider configured. Set GROQ_API_KEY, OPENROUTER_API_KEY, or GEMINI_API_KEY.")
+
         return chain
 
     @property
@@ -358,30 +348,47 @@ class OllamaClient:
                 parts = candidates[0].get("content", {}).get("parts") or []
                 return " ".join(part.get("text", "") for part in parts)
 
-    async def _embed_openrouter(self, text: str | List[str]) -> List[float] | List[List[float]]:
-        payload: Dict[str, object] = {
-            "input": text,
-            "model": OPENROUTER_EMBEDDING_MODEL_DEFAULT,
-        }
-        logger.info("OpenRouter generating embeddings...")
-        async with aiohttp.ClientSession() as session:
-            async with session.post(
-                f"{self.openrouter_base_url}/embeddings",
-                headers=self._openrouter_headers,
-                json=payload,
-                timeout=aiohttp.ClientTimeout(total=60),
-            ) as response:
-                if response.status != 200:
-                    error_text = await response.text()
-                    raise RuntimeError(
-                        f"OpenRouter embedding error ({response.status}): {error_text}"
-                    )
-                data = await response.json()
-                embeddings = [item["embedding"] for item in data.get("data", [])]
-                if isinstance(text, str) and embeddings:
-                    return embeddings[0]
-                return embeddings
+    async def _ping_provider(self, provider: str) -> bool:
+        """
+        Lightweight provider probe used for readiness checks.
+        """
+        try:
+            if provider == "groq" and self.groq_api_key:
+                headers = self._groq_headers
+                async with aiohttp.ClientSession() as session:
+                    async with session.get(
+                        f"{self.groq_api_base}/models",
+                        headers=headers,
+                        timeout=aiohttp.ClientTimeout(total=5),
+                    ) as response:
+                        return response.status == 200
 
+            if provider == "openrouter" and self.openrouter_api_key:
+                headers = self._openrouter_headers
+                async with aiohttp.ClientSession() as session:
+                    async with session.get(
+                        f"{self.openrouter_base_url}/models",
+                        headers=headers,
+                        timeout=aiohttp.ClientTimeout(total=5),
+                    ) as response:
+                        return response.status == 200
+
+            if provider == "gemini" and self.gemini_api_key:
+                params = {"key": self.gemini_api_key}
+                async with aiohttp.ClientSession() as session:
+                    async with session.get(
+                        f"{self.gemini_base_url}/models",
+                        params=params,
+                        timeout=aiohttp.ClientTimeout(total=5),
+                    ) as response:
+                        return response.status == 200
+        except Exception as exc:  # noqa: BLE001
+            logger.warning(f"{provider} health check failed: {exc}")
+
+        return False
+
+# Backwards compatible alias for clarity
+CloudLLMClient = OllamaClient
 
 # ----------------------------------------------------------------------
 # Basic smoke test

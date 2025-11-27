@@ -17,7 +17,7 @@ class TestAgents:
     async def setup_agents(self):
         """Setup agents for testing"""
         ollama = OllamaClient()
-        vector_store = ArtisanVectorStore("./data/test_chroma")
+        vector_store = ArtisanVectorStore()
         
         yield {
             'ollama': ollama,

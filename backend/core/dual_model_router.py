@@ -31,7 +31,7 @@ class DualModelRouter:
             task_type: Explicit task type (optional)
         
         Returns:
-            Model name to use: "gemma3:4b" or "gemma3:1b"
+            Model name to use: reasoning_model or fast_model from settings
         """
         # Explicit task type overrides everything
         if task_type:

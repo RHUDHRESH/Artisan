@@ -42,12 +42,8 @@ RUN playwright install chromium
 # Copy application code
 COPY . .
 
-# Create data directory for ChromaDB
-RUN mkdir -p /app/data/chroma_db /app/data/cache
-
 ENV PYTHONUNBUFFERED=1 \
     PYTHONDONTWRITEBYTECODE=1 \
-    CHROMA_DB_PATH=/app/data/chroma_db \
     LOG_LEVEL=INFO \
     PORT=8000
 

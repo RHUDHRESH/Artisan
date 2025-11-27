@@ -14,9 +14,10 @@ router = APIRouter(prefix="/settings", tags=["settings"])
 
 class SettingsUpdate(BaseModel):
     """Settings update model"""
-    llm_provider: Optional[str] = Field(None, description="LLM provider: groq or ollama")
+    llm_provider: Optional[str] = Field(None, description="LLM provider: groq, openrouter, gemini, or auto")
     groq_api_key: Optional[str] = Field(None, description="GROQ API key")
-    ollama_base_url: Optional[str] = Field(None, description="Ollama base URL")
+    openrouter_api_key: Optional[str] = Field(None, description="OpenRouter API key")
+    gemini_api_key: Optional[str] = Field(None, description="Gemini API key")
     tavily_api_key: Optional[str] = Field(None, description="Tavily API key")
     cors_origins: Optional[str] = Field(None, description="CORS origins (comma-separated)")
     log_level: Optional[str] = Field(None, description="Log level: DEBUG, INFO, WARNING, ERROR")
@@ -26,7 +27,8 @@ class SettingsResponse(BaseModel):
     """Settings response model"""
     llm_provider: str
     groq_api_key_configured: bool
-    ollama_base_url: str
+    openrouter_api_key_configured: bool
+    gemini_api_key_configured: bool
     tavily_api_key_configured: bool
     cors_origins: str
     log_level: str
@@ -40,7 +42,8 @@ async def get_settings():
         return SettingsResponse(
             llm_provider=settings.llm_provider,
             groq_api_key_configured=bool(settings.groq_api_key and settings.groq_api_key != "your-groq-api-key-here"),
-            ollama_base_url=settings.ollama_base_url,
+            openrouter_api_key_configured=bool(settings.openrouter_api_key),
+            gemini_api_key_configured=bool(settings.gemini_api_key),
             tavily_api_key_configured=bool(settings.tavily_api_key),
             cors_origins=settings.cors_origins,
             log_level=settings.log_level,
@@ -57,10 +60,10 @@ async def update_settings(update: SettingsUpdate):
     try:
         # Update LLM provider
         if update.llm_provider:
-            if update.llm_provider not in ["groq", "ollama"]:
+            if update.llm_provider not in ["groq", "openrouter", "gemini", "auto"]:
                 raise HTTPException(
                     status_code=400,
-                    detail="Invalid LLM provider. Must be 'groq' or 'ollama'"
+                    detail="Invalid LLM provider. Must be one of: groq, openrouter, gemini, auto"
                 )
             settings.llm_provider = update.llm_provider
             logger.info(f"Updated LLM provider to: {update.llm_provider}")
@@ -70,10 +73,13 @@ async def update_settings(update: SettingsUpdate):
             settings.groq_api_key = update.groq_api_key
             logger.info("Updated GROQ API key")
 
-        # Update Ollama base URL
-        if update.ollama_base_url:
-            settings.ollama_base_url = update.ollama_base_url
-            logger.info(f"Updated Ollama base URL to: {update.ollama_base_url}")
+        if update.openrouter_api_key:
+            settings.openrouter_api_key = update.openrouter_api_key
+            logger.info("Updated OpenRouter API key")
+
+        if update.gemini_api_key:
+            settings.gemini_api_key = update.gemini_api_key
+            logger.info("Updated Gemini API key")
 
         # Update Tavily API key
         if update.tavily_api_key:
@@ -113,7 +119,8 @@ async def check_providers_health():
         async with LLMManager(
             primary_provider=LLMProvider(settings.llm_provider),
             groq_api_key=settings.groq_api_key,
-            ollama_base_url=settings.ollama_base_url
+            openrouter_api_key=settings.openrouter_api_key,
+            gemini_api_key=settings.gemini_api_key,
         ) as llm_manager:
             health_status = await llm_manager.health_check()
 
@@ -132,17 +139,18 @@ async def check_providers_health():
 async def test_provider(provider: str):
     """Test a specific LLM provider"""
     try:
-        if provider not in ["groq", "ollama"]:
+        if provider not in ["groq", "openrouter", "gemini"]:
             raise HTTPException(
                 status_code=400,
-                detail="Invalid provider. Must be 'groq' or 'ollama'"
+                detail="Invalid provider. Must be one of: groq, openrouter, gemini"
             )
 
         # Create LLM manager with specified provider
         async with LLMManager(
             primary_provider=LLMProvider(provider),
             groq_api_key=settings.groq_api_key,
-            ollama_base_url=settings.ollama_base_url
+            openrouter_api_key=settings.openrouter_api_key,
+            gemini_api_key=settings.gemini_api_key,
         ) as llm_manager:
             # Try a simple test
             result = await llm_manager.fast_task(
@@ -172,7 +180,6 @@ async def get_default_settings():
     """Get default settings for reference"""
     return {
         "llm_provider": "groq",
-        "ollama_base_url": "http://localhost:11434",
         "cors_origins": "*",
         "log_level": "INFO",
         "backend_url": "http://localhost:8000",
@@ -180,9 +187,13 @@ async def get_default_settings():
             "reasoning": "llama-3.3-70b-versatile",
             "fast": "llama-3.1-8b-instant"
         },
-        "ollama_models": {
-            "reasoning": "gemma3:4b",
-            "fast": "gemma3:1b",
-            "embedding": "nomic-embed-text:latest"
+        "openrouter_models": {
+            "reasoning": "openai/gpt-4o-mini",
+            "fast": "openai/gpt-4o-mini",
+            "embedding": "text-embedding-3-large"
+        },
+        "gemini_models": {
+            "reasoning": "gemini-1.5-flash",
+            "fast": "gemini-1.5-flash"
         }
     }

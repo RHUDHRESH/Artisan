@@ -22,7 +22,7 @@ class TestCompleteSystem:
     async def setup_system(self):
         """Setup all components"""
         ollama = OllamaClient()
-        vector_store = ArtisanVectorStore("./data/test_chroma")
+        vector_store = ArtisanVectorStore()
         scraper = WebScraperService()
         
         yield {
@@ -246,4 +246,3 @@ class TestCompleteSystem:
 
 if __name__ == "__main__":
     pytest.main([__file__, "-v", "-s"])
-

@@ -57,8 +57,9 @@ cp .env.example .env
 LLM_PROVIDER=groq
 GROQ_API_KEY=your-groq-api-key-here
 
-# OLLAMA (Fallback - optional for local development)
-OLLAMA_BASE_URL=http://localhost:11434
+# OPENROUTER / GEMINI (Fallbacks - optional but recommended)
+OPENROUTER_API_KEY=your-openrouter-key
+GEMINI_API_KEY=your-gemini-key
 
 # SEARCH API (Optional but recommended)
 TAVILY_API_KEY=your-tavily-api-key-here

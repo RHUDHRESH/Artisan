@@ -22,18 +22,15 @@ AI-powered, privacy-first assistant that helps Indian artisans find suppliers, g
 ```powershell
 python --version    # 3.9+ recommended 3.11+
 node --version      # 18+
-ollama --version    # from https://ollama.com
 ```
 
-### Step 1: Download AI Models (Terminal 1)
-```powershell
-ollama pull gemma3:4b
-ollama pull gemma3:1b
-ollama pull nomic-embed-text
-ollama serve   # keep running
-```
+### Step 1: Set cloud API keys
+Copy `.env.example` to `.env` and set:
+- `GROQ_API_KEY` (required)
+- `OPENROUTER_API_KEY` and `GEMINI_API_KEY` (recommended fallbacks)
+- `TAVILY_API_KEY` for web search
 
-### Step 2: Backend (Terminal 2)
+### Step 2: Backend (Terminal 1)
 ```powershell
 cd "C:\Users\hp\OneDrive\Desktop\Artisan"
 .venv\Scripts\activate
@@ -41,7 +38,7 @@ pip install -r requirements.txt      # first time
 uvicorn backend.main:app --host 0.0.0.0 --port 8000 --reload
 ```
 
-### Step 3: Frontend (Terminal 3)
+### Step 3: Frontend (Terminal 2)
 ```powershell
 cd "C:\Users\hp\OneDrive\Desktop\Artisan\frontend"
 npm install    # first time
@@ -55,9 +52,8 @@ http://localhost:3000
 
 Expected running stack:
 ```
-Terminal 1: ollama serve        (11434)
-Terminal 2: uvicorn backend     (8000)
-Terminal 3: npm run dev         (3000)
+Terminal 1: uvicorn backend     (8000)
+Terminal 2: npm run dev         (3000)
 Browser:   http://localhost:3000
 ```
 
@@ -66,10 +62,11 @@ To stop, press `Ctrl+C` in each terminal.
 ## Environment Variables
 Copy `.env.example` to `.env` and set what you need:
 ```env
-# LLM provider (Groq default, Ollama fallback)
+# LLM provider (Groq primary, OpenRouter/Gemini fallback)
 LLM_PROVIDER=groq
 GROQ_API_KEY=your-groq-api-key
-OLLAMA_BASE_URL=http://localhost:11434
+OPENROUTER_API_KEY=your-openrouter-key
+GEMINI_API_KEY=your-gemini-key
 
 # Web search (required for suppliers, growth, events)
 TAVILY_API_KEY=your-tavily-key
@@ -110,7 +107,6 @@ Tips:
 
 - **Python/Node missing**: reinstall and ensure they’re on PATH (`python --version`, `node --version`).
 - **Port in use (8000/3000)**: `netstat -ano | findstr :8000` then `taskkill /PID <PID> /F`, or run on another port (`uvicorn ... --port 8001`, `npm run dev -- -p 3001`).
-- **Ollama not running/model missing**: keep `ollama serve` open; check `ollama list`, re-run pulls.
 - **Missing web search key**: add `TAVILY_API_KEY` or `SERPAPI_KEY` to `.env`, restart backend, refresh UI.
 - **npm install errors**: `npm cache clean --force`, delete `frontend/node_modules` + `package-lock.json`, reinstall.
 - **pip install errors**: upgrade pip (`python -m pip install --upgrade pip`), ensure build tools installed, retry `pip install -r requirements.txt`.
@@ -123,15 +119,15 @@ Tips:
 Artisan/
 ├── backend/            # FastAPI, agents, scraping, vector store, services
 ├── frontend/           # Next.js app and components
-├── data/               # Local data (ChromaDB, cache, logs)
+├── data/               # Local data (cache, logs)
 ├── docker-compose*.yml # Docker definitions
 └── start.bat           # Windows helper
 ```
 
 Core flow:
-Frontend (Next.js) → Backend API/WebSocket (FastAPI) → Agents (Profile, Supply, Growth, Events) → LLM (Groq/Ollama) → Vector store (ChromaDB) → Optional Supabase sync.
+Frontend (Next.js) → Backend API/WebSocket (FastAPI) → Agents (Profile, Supply, Growth, Events) → LLM (Groq/OpenRouter/Gemini) → Vector store (in-memory) → Optional Supabase sync.
 
-Stack highlights: FastAPI, Next.js 14, Tailwind, Framer Motion, Playwright/BeautifulSoup, Groq + Ollama, ChromaDB, Supabase optional, Tavily/SerpAPI for live search.
+Stack highlights: FastAPI, Next.js 14, Tailwind, Framer Motion, Playwright/BeautifulSoup, Groq + OpenRouter + Gemini, in-memory vector store, Supabase optional, Tavily/SerpAPI for live search.
 
 ## Developer Workflow
 
@@ -141,6 +137,7 @@ cd "C:\Users\hp\OneDrive\Desktop\Artisan"
 python -m venv .venv
 .venv\Scripts\activate
 pip install -r requirements.txt
+pip install -r requirements-dev.txt  # install test/dev tooling
 playwright install chromium
 cd frontend && npm install && cd ..
 ```
@@ -155,13 +152,14 @@ cd frontend && npm run lint && cd ..
 
 Tests:
 ```powershell
+pip install -r requirements-dev.txt
 pytest backend/tests/ -v            # or add --cov=backend
 cd frontend && npm test && cd ..
 ```
 
 Useful patterns:
 - Add APIs under `backend/api/routes/`, include validation via Pydantic models.
-- Agents live in `backend/agents/`; reuse `backend/core/ollama_client.py` and `vector_store.py`.
+- Agents live in `backend/agents/`; reuse `backend/core/ollama_client.py` (cloud LLM client) and `vector_store.py`.
 - Frontend fetches use `NEXT_PUBLIC_API_URL`; WebSocket at `NEXT_PUBLIC_WS_URL`.
 
 ## Deployment
@@ -179,7 +177,7 @@ Useful patterns:
 ./docker-start.sh prod    # or: docker-compose up -d --build
 ./docker-start.sh dev     # hot reload
 ```
-Ports: backend 8000, frontend 3000, Ollama 11434.
+Ports: backend 8000, frontend 3000.
 
 ### Vercel (frontend)
 - Framework: Next.js; build `npm run build`; output `.next`.

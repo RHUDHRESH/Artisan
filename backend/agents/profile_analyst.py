@@ -220,7 +220,7 @@ async def test_profile_analyst():
     from backend.core.vector_store import ArtisanVectorStore
     
     ollama = OllamaClient()
-    vector_store = ArtisanVectorStore("./data/test_chroma")
+    vector_store = ArtisanVectorStore()
     
     agent = ProfileAnalystAgent(ollama, vector_store)
     

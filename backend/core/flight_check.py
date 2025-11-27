@@ -9,7 +9,6 @@ import os
 import platform
 import sys
 from datetime import datetime
-from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 try:  # Prefer async httpx if available
@@ -34,7 +33,6 @@ class FlightCheck:
     REQUIRED_PYTHON: tuple[int, int] = (3, 9)
     REQUIRED_MODULES: Dict[str, str] = {
         "fastapi": "HTTP API framework",
-        "chromadb": "Vector store for knowledge base",
         "langgraph": "Multi-agent orchestration",
         "playwright.async_api": "Dynamic scraping",
         "sqlalchemy": "Tool metadata database",
@@ -49,7 +47,7 @@ class FlightCheck:
                 "python_version": platform.python_version(),
                 "platform": platform.platform(),
                 "llm_provider": settings.llm_provider,
-                "chroma_db_path": str(Path(settings.chroma_db_path).resolve()),
+                "vector_store": "in-memory",
                 "groq_configured": bool(getattr(settings, "groq_api_key", None)),
                 "openrouter_configured": bool(getattr(settings, "openrouter_api_key", None)),
                 "gemini_configured": bool(getattr(settings, "gemini_api_key", None)),
@@ -195,7 +193,8 @@ class FlightCheck:
         """Validate cloud LLM connectivity (Groq -> OpenRouter -> Gemini)."""
         client = OllamaClient()
         try:
-            ok = await client.health_check()
+            statuses = await client.provider_statuses()
+            ok = any(statuses.values())
         except Exception as exc:  # noqa: BLE001
             self._record_check(
                 "llm_providers",
@@ -216,51 +215,30 @@ class FlightCheck:
                 "llm_providers",
                 "healthy",
                 "At least one cloud LLM provider reachable",
-                {"configured": configured},
+                {"configured": configured, "providers": statuses},
             )
         else:
             self._record_check(
                 "llm_providers",
                 "unhealthy",
                 "Cloud LLM providers unreachable",
-                {},
+                {"providers": statuses},
                 "Verify API keys and outbound HTTPS connectivity.",
             )
 
     async def _check_vector_store(self) -> None:
-        """Verify ChromaDB can be created and accessed."""
+        """Verify the in-memory vector store can be instantiated."""
         try:
-            import chromadb  # noqa: F401
-        except ImportError as exc:
-            message = "ChromaDB package not installed"
-            details = {"error": str(exc)}
-            suggestion = "Install dependencies with `pip install -r requirements.txt`."
-            self._record_check("vector_store", "unhealthy", message, details, suggestion)
-            return
-
-        def probe() -> Dict[str, Any]:
-            import chromadb
-
-            path = Path(settings.chroma_db_path)
-            path.mkdir(parents=True, exist_ok=True)
-            client = chromadb.PersistentClient(path=str(path))
-            heartbeat = client.heartbeat()
-            collections = [getattr(col, "name", str(col)) for col in client.list_collections()]
-            return {"heartbeat": heartbeat, "collections": collections, "path": str(path.resolve())}
-
-        try:
-            data = await asyncio.to_thread(probe)
+            store = ArtisanVectorStore()
+            counts = {name: len(entries) for name, entries in store.collections.items()}
+            message = "Vector store in-memory collections initialized"
+            details = {"collection_counts": counts}
+            self._record_check("vector_store", "healthy", message, details)
         except Exception as exc:
-            message = "ChromaDB error"
+            message = "Vector store initialization failed"
             details = {"error": str(exc), "error_type": type(exc).__name__}
-            suggestion = "Ensure DuckDB/Chroma can create files under ./data/chroma_db (check permissions)."
+            suggestion = "Ensure OPENROUTER_API_KEY is set so embeddings can be created."
             self._record_check("vector_store", "unhealthy", message, details, suggestion)
-            return
-
-        status = "healthy" if data["heartbeat"] else "warning"
-        message = "ChromaDB ready" if data["heartbeat"] else "ChromaDB heartbeat failed"
-        suggestion = None if data["heartbeat"] else "Restart the backend after clearing ./data/chroma_db."
-        self._record_check("vector_store", status, message, data, suggestion)
 
     async def _check_tool_database(self) -> None:
         """Ensure the SQLite tool database can be opened."""

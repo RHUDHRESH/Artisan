@@ -8,7 +8,6 @@ from backend.constants import (
     EMBEDDING_MODEL_DEFAULT,
     REASONING_MODEL_DEFAULT,
     FAST_MODEL_DEFAULT,
-    VECTOR_STORE_DEFAULT_PATH,
     LOG_LEVEL_DEFAULT
 )
 
@@ -17,11 +16,8 @@ class Settings(BaseSettings):
     """Application settings"""
 
     # LLM Provider Configuration
-    llm_provider: str = "groq"  # Options: "groq" (primary), "ollama" (fallback)
+    llm_provider: str = "groq"  # Options: "groq", "openrouter", "gemini", "auto"
     groq_api_key: Optional[str] = None
-
-    # Ollama Configuration (legacy local dev - leave empty for cloud-only)
-    ollama_base_url: str = ""
 
     # Cloud LLM Configuration
     openrouter_api_key: Optional[str] = None
@@ -41,9 +37,6 @@ class Settings(BaseSettings):
 
     # SerpAPI Configuration (deprecated - using Tavily now)
     serpapi_key: Optional[str] = None
-
-    # ChromaDB Configuration
-    chroma_db_path: str = VECTOR_STORE_DEFAULT_PATH
 
     # Logging
     log_level: str = LOG_LEVEL_DEFAULT
@@ -71,7 +64,9 @@ class Settings(BaseSettings):
     backend_url: str = "http://localhost:8000"
 
     # CORS Origins (comma-separated)
-    cors_origins: str = "*"  # Default for development, should be configured for production
+    # Default "*" allows all origins - ONLY for development
+    # For production, set to your actual domains: "https://app.vercel.app,https://yourdomain.com"
+    cors_origins: str = "*"
     
     class Config:
         env_file = ".env"
@@ -90,14 +85,12 @@ env_overrides = {
     "GROQ_API_KEY": "groq_api_key",
     "TAVILY_API_KEY": "tavily_api_key",
     "SERPAPI_KEY": "serpapi_key",
-    "OLLAMA_BASE_URL": "ollama_base_url",
     "OPENROUTER_API_KEY": "openrouter_api_key",
     "OPENROUTER_BASE_URL": "openrouter_base_url",
     "OPENROUTER_REASONING_MODEL": "openrouter_reasoning_model",
     "OPENROUTER_FAST_MODEL": "openrouter_fast_model",
     "GEMINI_API_KEY": "gemini_api_key",
     "GEMINI_MODEL": "gemini_model",
-    "CHROMA_DB_PATH": "chroma_db_path",
     "LOG_LEVEL": "log_level",
     "EMBEDDING_MODEL": "embedding_model",
     "REASONING_MODEL": "reasoning_model",

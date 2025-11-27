@@ -6,9 +6,9 @@ Centralized configuration for models, timeouts, limits, and other magic values
 # ============================================================================
 # LLM MODEL CONFIGURATION
 # ============================================================================
-EMBEDDING_MODEL_DEFAULT = "nomic-ai/nomic-embed-text-v1.5"
-REASONING_MODEL_DEFAULT = "llama-3.3-70b-versatile"  # Groq default for complex reasoning
-FAST_MODEL_DEFAULT = "llama-3.1-8b-instant"          # Groq default for fast responses
+EMBEDDING_MODEL_DEFAULT = "text-embedding-3-large"    # Hosted via OpenRouter (cloud)
+REASONING_MODEL_DEFAULT = "llama-3.3-70b-versatile"   # Groq default for complex reasoning
+FAST_MODEL_DEFAULT = "llama-3.1-8b-instant"           # Groq default for fast responses
 CHAT_MODEL = REASONING_MODEL_DEFAULT
 
 # Cloud fallbacks
@@ -17,11 +17,6 @@ OPENROUTER_REASONING_MODEL_DEFAULT = "openai/gpt-4o-mini"
 OPENROUTER_FAST_MODEL_DEFAULT = "openai/gpt-4o-mini"
 OPENROUTER_EMBEDDING_MODEL_DEFAULT = "text-embedding-3-large"
 GEMINI_MODEL_DEFAULT = "gemini-1.5-flash"
-
-# Legacy local defaults (kept for compatibility)
-OLLAMA_REASONING_MODEL_DEFAULT = "gemma3:4b"
-OLLAMA_FAST_MODEL_DEFAULT = "gemma3:1b"
-OLLAMA_EMBEDDING_MODEL_DEFAULT = "nomic-embed-text:latest"
 
 # ============================================================================
 # API TIMEOUTS & RATE LIMITS (seconds)
@@ -36,7 +31,6 @@ WEBSOCKET_BROADCAST_TIMEOUT = 5
 # ============================================================================
 # VECTOR STORE CONFIGURATION
 # ============================================================================
-VECTOR_STORE_DEFAULT_PATH = "./data/chroma_db"
 VECTOR_STORE_PERSIST_IMPL = "duckdb+parquet"
 
 # Collections names
@@ -121,7 +115,6 @@ PAGINATION_MAX_PAGE_SIZE = 100
 # ============================================================================
 ERROR_INVALID_COLLECTION = "Invalid collection: {collection_name}"
 ERROR_FAILED_TO_SCRAPE = "Failed to scrape {url}"
-ERROR_VECTOR_STORE_INIT = "Could not initialize ChromaDB client in any mode"
 ERROR_LLM_GENERATION = "Failed to generate response from LLM"
 ERROR_SEARCH_FAILED = "Search operation failed"
 
@@ -147,7 +140,7 @@ EVENT_SCOUT_DAYS_LOOKAHEAD = 90
 # ============================================================================
 # PROFILE ANALYST CONSTANTS
 # ============================================================================
-PROFILE_ANALYST_EXTRACTION_MODEL = "gemma3:4b"
+PROFILE_ANALYST_EXTRACTION_MODEL = REASONING_MODEL_DEFAULT
 PROFILE_ANALYST_MIN_CONFIDENCE = 0.7
 
 # ============================================================================

@@ -469,7 +469,7 @@ async def test_event_scout():
     from services.maps_service import MapsService
     
     ollama = OllamaClient()
-    vector_store = ArtisanVectorStore("./data/test_chroma")
+    vector_store = ArtisanVectorStore()
     scraper = WebScraperService()
     maps = MapsService()
     

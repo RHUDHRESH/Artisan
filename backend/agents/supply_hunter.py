@@ -382,7 +382,7 @@ async def test_supply_hunter():
     from backend.scraping.web_scraper import WebScraperService
     
     ollama = OllamaClient()
-    vector_store = ArtisanVectorStore("./data/test_chroma")
+    vector_store = ArtisanVectorStore()
     scraper = WebScraperService()
     
     agent = SupplyHunterAgent(ollama, vector_store, scraper)

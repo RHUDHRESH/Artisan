@@ -507,7 +507,7 @@ async def test_growth_marketer():
     from scraping.web_scraper import WebScraperService
     
     ollama = OllamaClient()
-    vector_store = ArtisanVectorStore("./data/test_chroma")
+    vector_store = ArtisanVectorStore()
     scraper = WebScraperService()
     
     agent = GrowthMarketerAgent(ollama, vector_store, scraper)

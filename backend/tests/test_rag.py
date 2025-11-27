@@ -15,7 +15,7 @@ class TestRAG:
     async def setup_rag(self):
         """Setup RAG engine"""
         ollama = OllamaClient()
-        vector_store = ArtisanVectorStore("./data/test_chroma")
+        vector_store = ArtisanVectorStore()
         rag_engine = RAGEngine(ollama, vector_store)
         
         yield rag_engine

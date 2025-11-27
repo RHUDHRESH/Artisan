@@ -40,7 +40,7 @@ with intelligent tools for supplier discovery, market research, business managem
 
 ### 💬 AI Chat Assistant
 - **Context-Aware**: Understands your business context and history
-- **Multi-Provider**: GROQ (primary) with Ollama fallback for reliability
+- **Multi-Provider**: GROQ (primary) with OpenRouter + Gemini fallbacks (cloud-only)
 - **Streaming Responses**: Real-time response streaming for better UX
 
 ### 📊 Business Intelligence
@@ -120,17 +120,19 @@ async def health_check():
         try:
             from backend.core.ollama_client import OllamaClient
             llm_client = OllamaClient()
-            llm_ok = await llm_client.health_check()
-            health_status["ollama_connected"] = llm_ok
+            provider_statuses = await llm_client.provider_statuses()
+            llm_ok = any(provider_statuses.values())
+            health_status["llm_connected"] = llm_ok
+            health_status["providers"] = provider_statuses
             if not llm_ok:
                 health_status["status"] = "degraded"
                 health_status["message"] = "API running but LLM provider unreachable"
         except Exception as e:
             logger.warning(f"LLM health check failed: {e}")
-            health_status["ollama_connected"] = False
+            health_status["llm_connected"] = False
             health_status["status"] = "degraded"
     else:
-        health_status["ollama_connected"] = None
+        health_status["llm_connected"] = None
         health_status["message"] = "Minimal mode - LLM features disabled"
     
     return HealthResponse(**health_status)

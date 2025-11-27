@@ -4,6 +4,7 @@ Chat API endpoints
 from fastapi import APIRouter, HTTPException
 from backend.models import ChatRequest, ChatResponse, ChatMessage
 from backend.core.ollama_client import OllamaClient
+from backend.config import settings
 from loguru import logger
 import time
 
@@ -43,13 +44,13 @@ and connect them with relevant events. Be concise, helpful, and empathetic."""
                     prompt=context,
                     system=system_prompt
                 )
-                model_used = "gemma3:4b"
+                model_used = settings.reasoning_model
             else:
                 response = await client.fast_task(
                     prompt=context,
                     system=system_prompt
                 )
-                model_used = "gemma3:1b"
+                model_used = settings.fast_model
         
         processing_time = time.time() - start_time
         

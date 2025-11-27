@@ -65,7 +65,7 @@ When you upgrade to a paid Render instance (1GB+ RAM):
    - Full monitoring (Prometheus + Structlog)
    - All agent routes (orchestration, maps, search, etc.)
    - WebSocket support
-   - Vector databases (ChromaDB)
+   - Vector store (in-memory only)
    - Firebase/Supabase integrations
 
 ## Troubleshooting
@@ -141,7 +141,7 @@ You're on free tier (512MB) with heavy features enabled.
 │  ✓ Structured logging                   │
 │  ✓ Full agent orchestration             │
 │  ✓ LangChain/LangGraph                  │
-│  ✓ ChromaDB vector store                │
+│  ✓ In-memory vector store               │
 │  ✓ WebSocket                            │
 │  ✓ Firebase/Supabase                    │
 │                                         │

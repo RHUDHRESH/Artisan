@@ -55,17 +55,17 @@ export function ProductionGate({ initialAnswers }: ProductionGateProps) {
           overall_status: "error",
           timestamp: new Date().toISOString(),
           checks: {
-            ollama: {
+            llm_providers: {
               status: "unknown",
               message: "Connection failed - backend may not be running",
               details: { error: error?.message || "Network error" }
             },
-            ollama_generation: {
+            llm_generation: {
               status: "unknown",
               message: "Cannot test - backend unreachable",
               details: { error: error?.message || "Failed to fetch" }
             },
-            chromadb: {
+            vector_store: {
               status: "unknown",
               message: "Cannot check - backend unreachable",
               details: { error: error?.message || "Failed to fetch" }
@@ -1411,17 +1411,17 @@ function SettingsView() {
         overall_status: "error",
         timestamp: new Date().toISOString(),
         checks: {
-          ollama: {
+          llm_providers: {
             status: "unknown",
             message: "Connection failed - backend may not be running",
             details: { error: "Network error", url: buildApiUrl("/health/flight-check") }
           },
-          ollama_generation: {
+          llm_generation: {
             status: "unknown",
             message: "Cannot test - backend unreachable",
             details: { error: error?.message || "Failed to fetch" }
           },
-          chromadb: {
+          vector_store: {
             status: "unknown",
             message: "Cannot check - backend unreachable",
             details: { error: error?.message || "Failed to fetch" }

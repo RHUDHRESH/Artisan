@@ -8,7 +8,8 @@ from typing import Optional, List, Dict, Any
 class HealthResponse(BaseModel):
     status: str
     message: str
-    ollama_connected: bool
+    llm_connected: Optional[bool]
+    providers: Optional[Dict[str, bool]] = None
 
 
 class ChatMessage(BaseModel):

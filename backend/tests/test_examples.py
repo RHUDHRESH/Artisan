@@ -16,7 +16,7 @@ class TestExamples:
     @pytest.fixture
     async def setup(self):
         ollama = OllamaClient()
-        vector_store = ArtisanVectorStore("./data/test_chroma")
+        vector_store = ArtisanVectorStore()
         yield {'ollama': ollama, 'vector_store': vector_store}
     
     async def test_potter_example(self, setup):

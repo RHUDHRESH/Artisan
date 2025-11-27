@@ -80,7 +80,8 @@ async def create_agent(request: CreateAgentRequest):
         async with LLMManager(
             primary_provider=LLMProvider(settings.llm_provider),
             groq_api_key=settings.groq_api_key,
-            ollama_base_url=settings.ollama_base_url
+            openrouter_api_key=settings.openrouter_api_key,
+            gemini_api_key=settings.gemini_api_key,
         ) as llm_manager:
             agent = factory.create_agent(spec, llm_manager)
 
@@ -134,7 +135,8 @@ async def execute_workflow(request: ExecuteWorkflowRequest, background_tasks: Ba
         async with LLMManager(
             primary_provider=LLMProvider(settings.llm_provider),
             groq_api_key=settings.groq_api_key,
-            ollama_base_url=settings.ollama_base_url
+            openrouter_api_key=settings.openrouter_api_key,
+            gemini_api_key=settings.gemini_api_key,
         ) as llm_manager:
 
             if request.use_supervisor:
@@ -316,7 +318,8 @@ async def create_hierarchy(
         async with LLMManager(
             primary_provider=LLMProvider(settings.llm_provider),
             groq_api_key=settings.groq_api_key,
-            ollama_base_url=settings.ollama_base_url
+            openrouter_api_key=settings.openrouter_api_key,
+            gemini_api_key=settings.gemini_api_key,
         ) as llm_manager:
 
             hierarchy = get_hierarchical_orchestrator(llm_manager)

@@ -13,11 +13,12 @@ services:
     environment:
       - LLM_PROVIDER=${LLM_PROVIDER:-groq}
       - GROQ_API_KEY=${GROQ_API_KEY}
-      - OLLAMA_BASE_URL=${OLLAMA_BASE_URL}
+      - OPENROUTER_API_KEY=${OPENROUTER_API_KEY}
+      - GEMINI_API_KEY=${GEMINI_API_KEY}
       - TAVILY_API_KEY=${TAVILY_API_KEY}
       - SUPABASE_URL=${SUPABASE_URL}
       - SUPABASE_KEY=${SUPABASE_KEY}
-      - CHROMA_DB_PATH=/app/data/chroma_db
+      - EMBEDDING_MODEL=${EMBEDDING_MODEL:-text-embedding-3-large}
       - LOG_LEVEL=INFO
       - CORS_ORIGINS=${CORS_ORIGINS}
       - BACKEND_URL=${BACKEND_URL}

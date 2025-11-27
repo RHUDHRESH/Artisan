@@ -19,7 +19,7 @@
 019. Identify running backend/ frontend versions.
 020. Confirm Python 3.9+ available via `python --version`.
 021. Confirm node 18+ via `node --version`.
-022. Verify `data/` write permissions for Chroma and SQLite.
+022. Verify `data/` write permissions for cache/SQLite.
 023. Verify outbound HTTPS allowed for Tavily/SerpAPI.
 024. Note network access enabled per environment context.
 025. Note sandbox mode danger-full-access allows full fs.
@@ -53,7 +53,7 @@
 053. Confirm agents still returning HTTP 200 with empty data.
 054. Confirm front-end displays "nothing found" rather than actionable guidance.
 055. Note latency of requests to measure improvements later.
-056. Verify if state stored to Chroma or Local JSON unaffected.
+056. Verify if state stored to the in-memory vector store or Local JSON unaffected.
 057. Confirm event scout/growth marketer behave similarly.
 058. Identify if caching influences result count.
 059. Validate no auth or rate limiting interfering.
