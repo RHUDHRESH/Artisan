@@ -1158,6 +1158,32 @@ function AgentView({
   );
 }
 
+const buildGrowthAnalysisRequest = (answers: Record<string, string>) => {
+  const ans = answers || {};
+  const craftType = ans.craft_type?.trim() || "pottery";
+  const specialization =
+    ans.tradition?.trim() || ans.specialization?.trim() || "handmade pottery";
+  const productText = (ans.products || "hand-thrown bowl").trim();
+  const currentProducts = productText
+    .split(",")
+    .map((value) => value.trim())
+    .filter(Boolean);
+  const locationSegments = (ans.location || "")
+    .split(",")
+    .map((segment) => segment.trim());
+
+  return {
+    craft_type: craftType,
+    specialization,
+    current_products:
+      currentProducts.length > 0 ? currentProducts : ["hand-thrown bowl"],
+    location: {
+      city: locationSegments[0] || "Jaipur",
+      state: locationSegments[1] || "Rajasthan"
+    }
+  };
+};
+
 function OpportunitiesView({ answers }: { answers?: Record<string, string> }) {
   return (
     <AgentView
@@ -1165,15 +1191,7 @@ function OpportunitiesView({ answers }: { answers?: Record<string, string> }) {
       endpoint="growth/analyze"
       buttonText="Analyze Opportunities"
       answers={answers}
-      requestBuilder={(ans) => ({
-        craft_type: ans.craft_type || "pottery",
-        specialization: ans.tradition || "",
-        current_products: (ans.products || "").split(",").map((s: string) => s.trim()).filter(Boolean),
-        location: {
-          city: ans.location?.split(",")[0] || "Jaipur",
-          state: ans.location?.split(",")[1] || "Rajasthan"
-        }
-      })}
+      requestBuilder={buildGrowthAnalysisRequest}
     />
   );
 }
@@ -1185,15 +1203,7 @@ function GrowthMarketerView({ answers }: { answers?: Record<string, string> }) {
       endpoint="growth/analyze"
       buttonText="Analyze Growth"
       answers={answers}
-      requestBuilder={(ans) => ({
-        craft_type: ans.craft_type || "pottery",
-        specialization: ans.tradition || "",
-        current_products: (ans.products || "").split(",").map((s: string) => s.trim()).filter(Boolean),
-        location: {
-          city: ans.location?.split(",")[0] || "Jaipur",
-          state: ans.location?.split(",")[1] || "Rajasthan"
-        }
-      })}
+      requestBuilder={buildGrowthAnalysisRequest}
     />
   );
 }
