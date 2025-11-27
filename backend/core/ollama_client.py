@@ -201,6 +201,17 @@ class OllamaClient:
             "gemini": await self._ping_provider("gemini"),
         }
 
+    async def ensure_available(self) -> Dict[str, bool]:
+        """Raise a clear error when no providers are configured/available."""
+        statuses = await self.provider_statuses()
+        if not any(statuses.values()):
+            raise RuntimeError(
+                "No cloud LLM providers are available. "
+                "Set at least one of GROQ_API_KEY, OPENROUTER_API_KEY, or GEMINI_API_KEY "
+                "to enable AI features."
+            )
+        return statuses
+
     # ------------------------------------------------------------------
     # Internal helpers
     # ------------------------------------------------------------------

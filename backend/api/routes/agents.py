@@ -59,6 +59,13 @@ async def fetch_recent_results(search_type: str, user_id: str, limit: int = 25) 
     return None
 
 
+async def ensure_llm_available() -> Dict[str, bool]:
+    """Ensure at least one LLM provider is ready before dispatching agents."""
+    async with OllamaClient() as client:
+        statuses = await client.ensure_available()
+    return statuses
+
+
 class ProfileAnalysisRequest(BaseModel):
     """Request model for profile analysis with validation"""
     input_text: str = Field(
@@ -281,6 +288,7 @@ async def analyze_profile(request: ProfileAnalysisRequest):
     Analyze artisan profile and infer needs
     """
     try:
+        await ensure_llm_available()
         ollama = OllamaClient()
         vector_store = ArtisanVectorStore()
         
@@ -292,6 +300,9 @@ async def analyze_profile(request: ProfileAnalysisRequest):
         })
         
         return result
+    except RuntimeError as e:
+        logger.error(f"Profile analysis error: {e}")
+        raise HTTPException(status_code=503, detail=str(e))
     except Exception as e:
         logger.error(f"Profile analysis error: {e}")
         raise HTTPException(status_code=500, detail=str(e))
@@ -303,6 +314,7 @@ async def search_suppliers(request: SupplySearchRequest):
     Search for suppliers based on artisan needs
     """
     try:
+        await ensure_llm_available()
         ollama = OllamaClient()
         vector_store = ArtisanVectorStore()
         scraper = WebScraperService()
@@ -344,6 +356,9 @@ async def search_suppliers(request: SupplySearchRequest):
         normalized = dict(result)
         normalized["results"] = result.get("suppliers", [])
         return normalized
+    except RuntimeError as e:
+        logger.error(f"Supply search error: {e}")
+        raise HTTPException(status_code=503, detail=str(e))
     except Exception as e:
         logger.error(f"Supply search error: {e}")
         raise HTTPException(status_code=500, detail=str(e))
@@ -355,6 +370,7 @@ async def analyze_growth(request: GrowthAnalysisRequest):
     Analyze growth opportunities and market trends
     """
     try:
+        await ensure_llm_available()
         ollama = OllamaClient()
         vector_store = ArtisanVectorStore()
         scraper = WebScraperService()
@@ -397,6 +413,9 @@ async def analyze_growth(request: GrowthAnalysisRequest):
             normalized = dict(result)
             normalized.setdefault("results", [])
             return normalized
+    except RuntimeError as e:
+        logger.error(f"Growth analysis error: {e}")
+        raise HTTPException(status_code=503, detail=str(e))
     except Exception as e:
         logger.error(f"Growth analysis error: {e}")
         raise HTTPException(status_code=500, detail=str(e))
@@ -408,6 +427,7 @@ async def search_events(request: EventSearchRequest):
     Search for events and opportunities
     """
     try:
+        await ensure_llm_available()
         ollama = OllamaClient()
         vector_store = ArtisanVectorStore()
         scraper = WebScraperService()
@@ -445,6 +465,9 @@ async def search_events(request: EventSearchRequest):
             normalized = dict(result)
             normalized.setdefault("results", [])
             return normalized
+    except RuntimeError as e:
+        logger.error(f"Event search error: {e}")
+        raise HTTPException(status_code=503, detail=str(e))
     except Exception as e:
         logger.error(f"Event search error: {e}")
         raise HTTPException(status_code=500, detail=str(e))
@@ -464,6 +487,7 @@ async def god_mode_intelligence(request: SupervisedMissionRequest):
     - Performance optimization frameworks
     """
     try:
+        await ensure_llm_available()
         ollama = OllamaClient()
         vector_store = ArtisanVectorStore()
         scraper = WebScraperService()
@@ -502,6 +526,9 @@ async def god_mode_intelligence(request: SupervisedMissionRequest):
         }
 
         return god_response
+    except RuntimeError as e:
+        logger.error(f"GOD MODE intelligence error: {e}")
+        raise HTTPException(status_code=503, detail=str(e))
     except Exception as e:
         logger.error(f"GOD MODE intelligence error: {e}")
         raise HTTPException(status_code=500, detail=f"GOD MODE FAILURE: {str(e)}")
@@ -512,6 +539,7 @@ async def run_supervised_mission(request: SupervisedMissionRequest):
     Run a supervised mission: supervisor plans steps and dispatches to workers within constraints
     """
     try:
+        await ensure_llm_available()
         ollama = OllamaClient()
         vector_store = ArtisanVectorStore()
         scraper = WebScraperService()
@@ -527,6 +555,9 @@ async def run_supervised_mission(request: SupervisedMissionRequest):
         })
 
         return result
+    except RuntimeError as e:
+        logger.error(f"Supervised mission error: {e}")
+        raise HTTPException(status_code=503, detail=str(e))
     except Exception as e:
         logger.error(f"Supervised mission error: {e}")
         raise HTTPException(status_code=500, detail=str(e))
