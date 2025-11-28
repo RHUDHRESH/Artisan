@@ -24,15 +24,15 @@ class EventScoutAgent(BaseAgent):
     Uses: Gemma 3 4B for matching and analysis, 1B for classification
     """
     
-    def __init__(self, cloud_llm_client, vector_store, scraper_service, maps_service):
+    def __init__(self, cloud_llm_client, vector_store, scraper_service=None, maps_service=None):
         super().__init__(
             name="Event Scout",
             description="Finds relevant events and opportunities",
             cloud_llm_client=cloud_llm_client,
             vector_store=vector_store
         )
-        self.scraper = scraper_service
-        self.maps = maps_service
+        self.scraper = scraper_service or WebScraperService()
+        self.maps = maps_service or MapsService()
     
     async def analyze(self, user_profile: Dict) -> Dict:
         """
@@ -225,7 +225,7 @@ Extract in JSON format:
 If this is not an event page, return {{"name": null}}
 Return ONLY valid JSON."""
 
-                event_result = await self.ollama.reasoning_task(event_prompt)
+                event_result = await self.cloud_llm.reasoning_task(event_prompt)
                 
                 try:
                     if "```json" in event_result:
@@ -312,7 +312,7 @@ Extract in JSON format:
 If no scheme found, return {{"scheme_name": null}}
 Return ONLY valid JSON."""
 
-                result_text = await self.ollama.reasoning_task(scheme_prompt)
+                result_text = await self.cloud_llm.reasoning_task(scheme_prompt)
                 
                 try:
                     if "```json" in result_text:
@@ -420,7 +420,7 @@ Estimate in JSON:
 
 Amounts in Rs. Return ONLY valid JSON."""
 
-        result = await self.ollama.reasoning_task(roi_prompt)
+        result = await self.cloud_llm.reasoning_task(roi_prompt)
         
         try:
             if "```json" in result:

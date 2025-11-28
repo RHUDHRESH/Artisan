@@ -28,14 +28,14 @@ class SupplyHunterAgent(BaseAgent):
     Uses: Gemma 3 4B for analysis, 1B for classification
     """
     
-    def __init__(self, cloud_llm_client, vector_store, scraper_service):
+    def __init__(self, cloud_llm_client, vector_store, scraper_service=None):
         super().__init__(
             name="Supply Hunter",
             description="Finds and verifies suppliers for artisan materials",
             cloud_llm_client=cloud_llm_client,
             vector_store=vector_store
         )
-        self.scraper = scraper_service
+        self.scraper = scraper_service or WebScraperService()
     
     async def analyze(self, user_profile: Dict) -> Dict:
         """
