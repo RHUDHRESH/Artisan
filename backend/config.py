@@ -26,6 +26,9 @@ class Settings(BaseSettings):
     openrouter_fast_model: str = "microsoft/wizardlm-2-8x22b"  # CHEAP fast model
     gemini_api_key: Optional[str] = None
     gemini_model: str = "gemini-1.5-flash"  # Use basic flash, not 002 (more expensive)
+    openai_api_key: Optional[str] = None
+    openai_reasoning_model: str = "gpt-4o"
+    openai_fast_model: str = "gpt-4o-mini"
 
     # Model Configuration - COST-EFFECTIVE free trial setup
     embedding_model: str = EMBEDDING_MODEL_DEFAULT
@@ -95,6 +98,7 @@ env_overrides = {
     "OPENROUTER_FAST_MODEL": "openrouter_fast_model",
     "GEMINI_API_KEY": "gemini_api_key",
     "GEMINI_MODEL": "gemini_model",
+    "OPENAI_API_KEY": "openai_api_key",
     "LOG_LEVEL": "log_level",
     "EMBEDDING_MODEL": "embedding_model",
     "REASONING_MODEL": "reasoning_model",

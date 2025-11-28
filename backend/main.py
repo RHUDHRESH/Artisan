@@ -124,8 +124,8 @@ async def health_check():
     # Only check LLM if heavy features enabled
     if settings.enable_heavy_features:
         try:
-            from backend.core.ollama_client import OllamaClient
-            llm_client = OllamaClient()
+            from backend.core.cloud_llm_client import CloudLLMClient
+            llm_client = CloudLLMClient()
             provider_statuses = await llm_client.provider_statuses()
             llm_ok = any(provider_statuses.values())
             health_status["llm_connected"] = llm_ok

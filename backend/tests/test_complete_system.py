@@ -5,13 +5,13 @@ Matching next.md specification
 """
 import pytest
 import asyncio
-from core.ollama_client import OllamaClient
-from core.vector_store import ArtisanVectorStore
-from agents.profile_analyst import ProfileAnalystAgent
-from agents.supply_hunter import SupplyHunterAgent
-from agents.growth_marketer import GrowthMarketerAgent
-from agents.event_scout import EventScoutAgent
-from scraping.web_scraper import WebScraperService
+from backend.core.cloud_llm_client import CloudLLMClient
+from backend.core.vector_store import ArtisanVectorStore
+from backend.agents.profile_analyst import ProfileAnalystAgent
+from backend.agents.supply_hunter import SupplyHunterAgent
+from backend.agents.growth_marketer import GrowthMarketerAgent
+from backend.agents.event_scout import EventScoutAgent
+from backend.scraping.web_scraper import WebScraperService
 
 
 @pytest.mark.asyncio
@@ -21,7 +21,7 @@ class TestCompleteSystem:
     @pytest.fixture
     async def setup_system(self):
         """Setup all components"""
-        ollama = OllamaClient()
+        ollama = CloudLLMClient()
         vector_store = ArtisanVectorStore()
         scraper = WebScraperService()
         
@@ -150,7 +150,7 @@ class TestCompleteSystem:
     async def test_event_scout(self, setup_system):
         """Test Event Scout Agent"""
         components = setup_system
-        from services.maps_service import MapsService
+        from backend.services.maps_service import MapsService
         
         maps = MapsService()
         agent = EventScoutAgent(

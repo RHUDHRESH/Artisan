@@ -23,7 +23,7 @@ from backend.constants import (
     FAST_MODEL_DEFAULT,
     REASONING_MODEL_DEFAULT,
 )
-from backend.core.ollama_client import OllamaClient
+from backend.core.cloud_llm_client import CloudLLMClient
 from backend.core.monitoring import get_logger
 
 
@@ -191,7 +191,7 @@ class FlightCheck:
 
     async def _check_llm_connectivity(self) -> None:
         """Validate cloud LLM connectivity (Groq -> OpenRouter -> Gemini)."""
-        client = OllamaClient()
+        client = CloudLLMClient()
         try:
             statuses = await client.provider_statuses()
             ok = any(statuses.values())

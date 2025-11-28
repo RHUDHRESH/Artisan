@@ -3,7 +3,7 @@ RAG Engine - Retrieval Augmented Generation implementation
 """
 from typing import List, Dict, Optional
 from backend.config import settings
-from backend.core.ollama_client import OllamaClient
+from backend.core.cloud_llm_client import CloudLLMClient
 from backend.core.vector_store import ArtisanVectorStore
 from loguru import logger
 
@@ -14,7 +14,7 @@ class RAGEngine:
     Retrieves relevant documents from vector store and uses them as context
     """
     
-    def __init__(self, ollama_client: OllamaClient, vector_store: ArtisanVectorStore):
+    def __init__(self, ollama_client: CloudLLMClient, vector_store: ArtisanVectorStore):
         self.ollama = ollama_client
         self.vector_store = vector_store
     

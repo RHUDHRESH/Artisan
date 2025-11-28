@@ -5,7 +5,7 @@ These can be used as templates for creating more tests
 import pytest
 import asyncio
 from backend.agents.profile_analyst import ProfileAnalystAgent
-from backend.core.ollama_client import OllamaClient
+from backend.core.cloud_llm_client import CloudLLMClient
 from backend.core.vector_store import ArtisanVectorStore
 
 
@@ -15,7 +15,7 @@ class TestExamples:
     
     @pytest.fixture
     async def setup(self):
-        ollama = OllamaClient()
+        ollama = CloudLLMClient()
         vector_store = ArtisanVectorStore()
         yield {'ollama': ollama, 'vector_store': vector_store}
     

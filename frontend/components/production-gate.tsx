@@ -572,7 +572,7 @@ function SuppliersView({ answers: propAnswers }: { answers?: Record<string, stri
       )}
 
       {!isSearching && suppliers.length === 0 && (
-        <p className="text-gray-600">Click "Find Suppliers" to discover suppliers for your craft materials.</p>
+        <p className="text-gray-600">Click &apos;Find Suppliers&apos; to discover suppliers for your craft materials.</p>
       )}
 
       {suppliers.length > 0 && (
@@ -672,7 +672,7 @@ function OpportunitiesView({ answers }: { answers?: Record<string, string> }) {
       )}
 
       {!isAnalyzing && !results && (
-        <p className="text-gray-600">Click "Analyze Growth" to discover business opportunities for your craft.</p>
+        <p className="text-gray-600">Click &apos;Analyze Growth&apos; to discover business opportunities for your craft.</p>
       )}
 
       {results && (
@@ -751,7 +751,7 @@ function GrowthMarketerView({ answers }: { answers?: Record<string, string> }) {
       )}
 
       {!isAnalyzing && !results && (
-        <p className="text-gray-600">Click "Market Analysis" to get detailed marketing insights for your craft.</p>
+        <p className="text-gray-600">Click &apos;Market Analysis&apos; to get detailed marketing insights for your craft.</p>
       )}
 
       {results && (
@@ -829,7 +829,7 @@ function EventsView({ answers }: { answers?: Record<string, string> }) {
       )}
 
       {!isSearching && !results && (
-        <p className="text-gray-600">Click "Find Events" to discover craft fairs, exhibitions, and opportunities for your products.</p>
+        <p className="text-gray-600">Click &apos;Find Events&apos; to discover craft fairs, exhibitions, and opportunities for your products.</p>
       )}
 
       {results && (
@@ -907,7 +907,7 @@ function MaterialsView({ answers }: { answers?: Record<string, string> }) {
       )}
 
       {!isSearching && !results && (
-        <p className="text-gray-600">Click "Find Materials" to discover suppliers for craft materials and equipment.</p>
+        <p className="text-gray-600">Click &apos;Find Materials&apos; to discover suppliers for craft materials and equipment.</p>
       )}
 
       {results && (

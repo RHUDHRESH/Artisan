@@ -3,7 +3,7 @@ Abstract base class for all agents
 """
 from abc import ABC, abstractmethod
 from typing import Any, Dict, List, Optional, Union
-from backend.core.ollama_client import OllamaClient
+from backend.core.cloud_llm_client import CloudLLMClient
 from backend.core.vector_store import ArtisanVectorStore
 from loguru import logger
 from backend.agents.framework.tools import global_tool_registry
@@ -19,9 +19,9 @@ class BaseAgent(ABC):
         self,
         name: str,
         description: str,
-        llm_client: Optional[Union[OllamaClient, Any]] = None,  # Can be OllamaClient or LLMManager
+        llm_client: Optional[Union[CloudLLMClient, Any]] = None,  # Can be CloudLLMClient or LLMManager
         vector_store: Optional[ArtisanVectorStore] = None,
-        ollama_client: Optional[Union[OllamaClient, Any]] = None,
+        ollama_client: Optional[Union[CloudLLMClient, Any]] = None,
     ):
         resolved_llm = llm_client or ollama_client
 

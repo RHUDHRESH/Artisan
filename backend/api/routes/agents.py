@@ -4,7 +4,7 @@ Agent API endpoints
 from fastapi import APIRouter, HTTPException, Query
 from pydantic import BaseModel, Field, field_validator
 from typing import Optional, Dict, Any, List
-from backend.core.ollama_client import OllamaClient
+from backend.core.cloud_llm_client import CloudLLMClient
 from backend.core.vector_store import ArtisanVectorStore
 from backend.agents.profile_analyst import ProfileAnalystAgent
 from backend.agents.supply_hunter import SupplyHunterAgent
@@ -61,7 +61,7 @@ async def fetch_recent_results(search_type: str, user_id: str, limit: int = 25) 
 
 async def ensure_llm_available() -> Dict[str, bool]:
     """Ensure at least one LLM provider is ready before dispatching agents."""
-    async with OllamaClient() as client:
+    async with CloudLLMClient() as client:
         statuses = await client.ensure_available()
     return statuses
 
@@ -289,7 +289,7 @@ async def analyze_profile(request: ProfileAnalysisRequest):
     """
     try:
         await ensure_llm_available()
-        ollama = OllamaClient()
+        ollama = CloudLLMClient()
         vector_store = ArtisanVectorStore()
         
         agent = ProfileAnalystAgent(ollama, vector_store)
@@ -315,7 +315,7 @@ async def search_suppliers(request: SupplySearchRequest):
     """
     try:
         await ensure_llm_available()
-        ollama = OllamaClient()
+        ollama = CloudLLMClient()
         vector_store = ArtisanVectorStore()
         scraper = WebScraperService()
         
@@ -371,7 +371,7 @@ async def analyze_growth(request: GrowthAnalysisRequest):
     """
     try:
         await ensure_llm_available()
-        ollama = OllamaClient()
+        ollama = CloudLLMClient()
         vector_store = ArtisanVectorStore()
         scraper = WebScraperService()
         
@@ -428,7 +428,7 @@ async def search_events(request: EventSearchRequest):
     """
     try:
         await ensure_llm_available()
-        ollama = OllamaClient()
+        ollama = CloudLLMClient()
         vector_store = ArtisanVectorStore()
         scraper = WebScraperService()
         maps = MapsService()
@@ -488,7 +488,7 @@ async def god_mode_intelligence(request: SupervisedMissionRequest):
     """
     try:
         await ensure_llm_available()
-        ollama = OllamaClient()
+        ollama = CloudLLMClient()
         vector_store = ArtisanVectorStore()
         scraper = WebScraperService()
         maps = MapsService()
@@ -540,7 +540,7 @@ async def run_supervised_mission(request: SupervisedMissionRequest):
     """
     try:
         await ensure_llm_available()
-        ollama = OllamaClient()
+        ollama = CloudLLMClient()
         vector_store = ArtisanVectorStore()
         scraper = WebScraperService()
         maps = MapsService()

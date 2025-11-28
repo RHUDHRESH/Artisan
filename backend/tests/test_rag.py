@@ -2,7 +2,7 @@
 Tests for RAG (Retrieval Augmented Generation) functionality
 """
 import pytest
-from backend.core.ollama_client import OllamaClient
+from backend.core.cloud_llm_client import CloudLLMClient
 from backend.core.vector_store import ArtisanVectorStore
 from backend.core.rag_engine import RAGEngine
 
@@ -14,7 +14,7 @@ class TestRAG:
     @pytest.fixture
     async def setup_rag(self):
         """Setup RAG engine"""
-        ollama = OllamaClient()
+        ollama = CloudLLMClient()
         vector_store = ArtisanVectorStore()
         rag_engine = RAGEngine(ollama, vector_store)
         

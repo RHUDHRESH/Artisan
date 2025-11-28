@@ -14,7 +14,7 @@ from backend.agents.framework.planner import Planner
 from backend.agents.framework.executor import Executor
 from backend.agents.framework.guardrails import Guardrails
 
-from backend.core.ollama_client import OllamaClient
+from backend.core.cloud_llm_client import CloudLLMClient
 from backend.core.vector_store import ArtisanVectorStore
 from backend.scraping.web_scraper import WebScraperService
 from backend.services.maps_service import MapsService
@@ -31,7 +31,7 @@ class SupervisorAgent(BaseAgent):
 
     def __init__(
         self,
-        ollama_client: OllamaClient,
+        ollama_client: CloudLLMClient,
         vector_store: ArtisanVectorStore,
         scraper_service: Optional[WebScraperService] = None,
         maps_service: Optional[MapsService] = None,

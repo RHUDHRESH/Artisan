@@ -26,9 +26,10 @@ from backend.constants import (
     REASONING_MODEL_DEFAULT,
 )
 from backend.core.embeddings import EmbeddingClient
+from langchain_openai import ChatOpenAI
 
 
-class OllamaClient:
+class CloudLLMClient:
     """
     Backwards compatible interface used across the codebase.
     Under the hood it routes requests to Groq (remote) and falls back to
@@ -41,9 +42,11 @@ class OllamaClient:
         groq_api_key: Optional[str] = None,
         openrouter_api_key: Optional[str] = None,
         gemini_api_key: Optional[str] = None,
+        openai_api_key: Optional[str] = None,
     ):
         self.provider = (llm_provider or settings.llm_provider or "groq").lower()
 
+        self.openai_api_key = openai_api_key or settings.openai_api_key
         self.groq_api_key = groq_api_key or settings.groq_api_key
         self.groq_api_base = "https://api.groq.com/openai/v1"
 
@@ -115,6 +118,13 @@ class OllamaClient:
                         system=system,
                         temperature=temperature,
                     )
+                if provider == "openai":
+                    return await self._generate_openai(
+                        prompt=prompt,
+                        model=target_model,
+                        system=system,
+                        temperature=temperature,
+                    )
                 if provider == "gemini":
                     return await self._generate_gemini(
                         prompt=prompt,
@@ -122,7 +132,7 @@ class OllamaClient:
                         system=system,
                         temperature=temperature,
                     )
-            except Exception as exc:  # noqa: BLE001 - propagate aggregated
+            except Exception as exc:
                 msg = f"{provider} generation failed: {exc}"
                 logger.warning(msg)
                 errors.append(msg)
@@ -199,6 +209,7 @@ class OllamaClient:
             "groq": await self._ping_provider("groq"),
             "openrouter": await self._ping_provider("openrouter"),
             "gemini": await self._ping_provider("gemini"),
+            "openai": await self._ping_provider("openai"),
         }
 
     async def ensure_available(self) -> Dict[str, bool]:
@@ -207,7 +218,7 @@ class OllamaClient:
         if not any(statuses.values()):
             raise RuntimeError(
                 "No cloud LLM providers are available. "
-                "Set at least one of GROQ_API_KEY, OPENROUTER_API_KEY, or GEMINI_API_KEY "
+                "Set at least one of GROQ_API_KEY, OPENROUTER_API_KEY, GEMINI_API_KEY, or OPENAI_API_KEY "
                 "to enable AI features."
             )
         return statuses
@@ -247,15 +258,15 @@ class OllamaClient:
         chain: List[str] = []
         preferred: List[str] = []
 
-        if self.provider in {"groq", "openrouter", "gemini"}:
+        if self.provider in {"groq", "openrouter", "gemini", "openai"}:
             preferred.append(self.provider)
 
         if is_complex_task:
             # For complex tasks, prioritize capability over cost
-            ordering = preferred + ["groq", "openrouter", "gemini"]
+            ordering = preferred + ["openai", "groq", "openrouter", "gemini"]
         else:
             # For simple tasks, prioritize cost-effectiveness
-            ordering = ["groq", "openrouter", "gemini"]  # No preference, first available
+            ordering = ["groq", "openai", "openrouter", "gemini"]  # No preference, first available
 
         seen = set()
 
@@ -264,7 +275,9 @@ class OllamaClient:
                 continue
             seen.add(provider)
 
-            if provider == "groq" and self.groq_api_key:
+            if provider == "openai" and self.openai_api_key:
+                chain.append("openai")
+            elif provider == "groq" and self.groq_api_key:
                 chain.append("groq")
             elif provider == "openrouter" and self.openrouter_api_key:
                 # For complex tasks, prefer better OpenRouter models if expensive models enabled
@@ -446,19 +459,50 @@ class OllamaClient:
                         timeout=aiohttp.ClientTimeout(total=5),
                     ) as response:
                         return response.status == 200
+
+            if provider == "openai" and self.openai_api_key:
+                headers = {"Authorization": f"Bearer {self.openai_api_key}"}
+                async with aiohttp.ClientSession() as session:
+                    async with session.get(
+                        "https://api.openai.com/v1/models",
+                        headers=headers,
+                        timeout=aiohttp.ClientTimeout(total=5),
+                    ) as response:
+                        return response.status == 200
         except Exception as exc:  # noqa: BLE001
             logger.warning(f"{provider} health check failed: {exc}")
 
         return False
 
+    async def _generate_openai(
+        self,
+        prompt: str,
+        model: str,
+        system: Optional[str],
+        temperature: float,
+    ) -> str:
+        llm = ChatOpenAI(
+            model=model,
+            temperature=temperature,
+            max_tokens=2048,
+            api_key=self.openai_api_key,
+        )
+        messages = []
+        if system:
+            messages.append({"role": "system", "content": system})
+        messages.append({"role": "user", "content": prompt})
+        logger.info(f"OpenAI generating with {model}: {prompt[:100]}...")
+        result = await llm.ainvoke(messages)
+        return result.content
+
 # Backwards compatible alias for clarity
-CloudLLMClient = OllamaClient
+CloudLLMClient = CloudLLMClient
 
 # ----------------------------------------------------------------------
 # Basic smoke test
 # ----------------------------------------------------------------------
-async def test_ollama_client():
-    client = OllamaClient()
+async def test_cloud_llm_client():
+    client = CloudLLMClient()
 
     print("Testing reasoning task (Groq preferred)...")
     reply = await client.reasoning_task(
@@ -478,4 +522,4 @@ async def test_ollama_client():
 if __name__ == "__main__":
     import asyncio
 
-    asyncio.run(test_ollama_client())
+    asyncio.run(test_cloud_llm_client())

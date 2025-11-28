@@ -62,11 +62,12 @@ To stop, press `Ctrl+C` in each terminal.
 ## Environment Variables
 Copy `.env.example` to `.env` and set what you need:
 ```env
-# LLM provider (Groq primary, OpenRouter/Gemini fallback)
-LLM_PROVIDER=groq
+# LLM provider (Groq, OpenRouter, Gemini, or OpenAI)
+LLM_PROVIDER=openai
 GROQ_API_KEY=your-groq-api-key
 OPENROUTER_API_KEY=your-openrouter-key
 GEMINI_API_KEY=your-gemini-key
+OPENAI_API_KEY=your-openai-api-key
 
 # Web search (required for suppliers, growth, events)
 TAVILY_API_KEY=your-tavily-key
@@ -82,9 +83,17 @@ NEXT_PUBLIC_WS_URL=ws://localhost:8000
 
 # CORS for production
 CORS_ORIGINS=https://your-frontend.vercel.app
+
+# Embedding model (optional, defaults to OpenRouter's text-embedding-3-large)
+# If using Nomic on OpenRouter, use "nomic-ai/nomic-embed-text-v1"
+EMBEDDING_MODEL=nomic-ai/nomic-embed-text-v1
 ```
 
 If `TAVILY_API_KEY`/`SERPAPI_KEY` are missing, the Supply Hunter, Growth Marketer, and Event Scout agents will stop early and surface a blocking message telling you to add a key.
+
+### Choosing Economical Models
+
+For OpenAI, the default models are `gpt-4o` for reasoning and `gpt-4o-mini` for fast tasks. These can be configured in `backend/config.py`.
 
 ## How to Use the App
 
