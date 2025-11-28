@@ -24,11 +24,11 @@ class EventScoutAgent(BaseAgent):
     Uses: Gemma 3 4B for matching and analysis, 1B for classification
     """
     
-    def __init__(self, ollama_client, vector_store, scraper_service, maps_service):
+    def __init__(self, cloud_llm_client, vector_store, scraper_service, maps_service):
         super().__init__(
             name="Event Scout",
             description="Finds relevant events and opportunities",
-            ollama_client=ollama_client,
+            cloud_llm_client=cloud_llm_client,
             vector_store=vector_store
         )
         self.scraper = scraper_service
@@ -463,17 +463,17 @@ Amounts in Rs. Return ONLY valid JSON."""
 
 # Test the Event Scout Agent
 async def test_event_scout():
-    from core.ollama_client import OllamaClient
+    from core.cloud_llm_client import CloudLLMClient
     from core.vector_store import ArtisanVectorStore
     from scraping.web_scraper import WebScraperService
     from services.maps_service import MapsService
     
-    ollama = OllamaClient()
+    llm = CloudLLMClient()
     vector_store = ArtisanVectorStore()
     scraper = WebScraperService()
     maps = MapsService()
     
-    agent = EventScoutAgent(ollama, vector_store, scraper, maps)
+    agent = EventScoutAgent(llm, vector_store, scraper, maps)
     
     # Test input
     test_input = {

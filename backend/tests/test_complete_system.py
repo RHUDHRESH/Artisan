@@ -5,7 +5,7 @@ Matching next.md specification
 """
 import pytest
 import asyncio
-from backend.core.ollama_client import OllamaClient
+from backend.core.cloud_llm_client import CloudLLMClient
 from backend.core.vector_store import ArtisanVectorStore
 from backend.agents.profile_analyst import ProfileAnalystAgent
 from backend.agents.supply_hunter import SupplyHunterAgent
@@ -21,33 +21,33 @@ class TestCompleteSystem:
     @pytest.fixture
     async def setup_system(self):
         """Setup all components"""
-        ollama = OllamaClient()
+        llm = CloudLLMClient()
         vector_store = ArtisanVectorStore()
         scraper = WebScraperService()
         
         yield {
-            'ollama': ollama,
+            'llm': llm,
             'vector_store': vector_store,
             'scraper': scraper
         }
     
-    async def test_ollama_connection(self, setup_system):
-        """Test Ollama is accessible"""
+    async def test_llm_connection(self, setup_system):
+        """Test LLM is accessible"""
         components = setup_system
         
         # Test embeddings
-        embedding = await components['ollama'].embed("test")
+        embedding = await components['llm'].embed("test")
         assert len(embedding) > 0, "Embedding should have dimension > 0"
         
         # Test 4B model
-        response = await components['ollama'].reasoning_task("Say hello")
+        response = await components['llm'].reasoning_task("Say hello")
         assert len(response) > 0, "4B model should respond"
         
         # Test 1B model
-        response = await components['ollama'].fast_task("Say yes")
+        response = await components['llm'].fast_task("Say yes")
         assert len(response) > 0, "1B model should respond"
         
-        print("✓ Ollama connection: PASS")
+        print("✓ LLM connection: PASS")
     
     async def test_vector_store(self, setup_system):
         """Test vector store operations"""
@@ -78,7 +78,7 @@ class TestCompleteSystem:
         components = setup_system
         
         agent = ProfileAnalystAgent(
-            components['ollama'],
+            components['llm'],
             components['vector_store']
         )
         
@@ -104,7 +104,7 @@ class TestCompleteSystem:
         components = setup_system
         
         agent = SupplyHunterAgent(
-            components['ollama'],
+            components['llm'],
             components['vector_store'],
             components['scraper']
         )
@@ -128,7 +128,7 @@ class TestCompleteSystem:
         components = setup_system
         
         agent = GrowthMarketerAgent(
-            components['ollama'],
+            components['llm'],
             components['vector_store'],
             components['scraper']
         )
@@ -154,7 +154,7 @@ class TestCompleteSystem:
         
         maps = MapsService()
         agent = EventScoutAgent(
-            components['ollama'],
+            components['llm'],
             components['vector_store'],
             components['scraper'],
             maps
@@ -182,7 +182,7 @@ class TestCompleteSystem:
         
         # Step 1: Profile Analysis
         profile_agent = ProfileAnalystAgent(
-            components['ollama'],
+            components['llm'],
             components['vector_store']
         )
         
@@ -204,7 +204,7 @@ class TestCompleteSystem:
         
         # Step 2: Supply Hunting
         supply_agent = SupplyHunterAgent(
-            components['ollama'],
+            components['llm'],
             components['vector_store'],
             components['scraper']
         )
@@ -223,7 +223,7 @@ class TestCompleteSystem:
         
         # Step 3: Growth Marketing
         growth_agent = GrowthMarketerAgent(
-            components['ollama'],
+            components['llm'],
             components['vector_store'],
             components['scraper']
         )

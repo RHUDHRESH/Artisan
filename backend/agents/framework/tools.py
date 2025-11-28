@@ -98,8 +98,8 @@ class ExtractEntitiesTool:
     output_schema = {"type": "object"}
 
     def __init__(self):
-        from backend.core.ollama_client import OllamaClient
-        self._llm = OllamaClient()
+        from backend.core.cloud_llm_client import CloudLLMClient
+        self._llm = CloudLLMClient()
 
     async def run(self, **kwargs):
         prompt = (
@@ -213,8 +213,8 @@ class SummarizeTool:
     output_schema = {"type": "string"}
 
     def __init__(self):
-        from backend.core.ollama_client import OllamaClient
-        self._llm = OllamaClient()
+        from backend.core.cloud_llm_client import CloudLLMClient
+        self._llm = CloudLLMClient()
 
     async def run(self, **kwargs):
         style = kwargs.get("style") or "concise"
@@ -228,8 +228,8 @@ class ClassifyTool:
     output_schema = {"type": "object"}
 
     def __init__(self):
-        from backend.core.ollama_client import OllamaClient
-        self._llm = OllamaClient()
+        from backend.core.cloud_llm_client import CloudLLMClient
+        self._llm = CloudLLMClient()
 
     async def run(self, **kwargs):
         labels = kwargs["labels"]
@@ -244,8 +244,8 @@ class TranslateTool:
     output_schema = {"type": "string"}
 
     def __init__(self):
-        from backend.core.ollama_client import OllamaClient
-        self._llm = OllamaClient()
+        from backend.core.cloud_llm_client import CloudLLMClient
+        self._llm = CloudLLMClient()
 
     async def run(self, **kwargs):
         return await self._llm.fast_task(f"Translate to {kwargs['target_lang']}:\n\n{kwargs['text'][:4000]}")
@@ -258,8 +258,8 @@ class TableExtractTool:
     output_schema = {"type": "array"}
 
     def __init__(self):
-        from backend.core.ollama_client import OllamaClient
-        self._llm = OllamaClient()
+        from backend.core.cloud_llm_client import CloudLLMClient
+        self._llm = CloudLLMClient()
 
     async def run(self, **kwargs):
         cols = ", ".join(kwargs["columns"])[:200]

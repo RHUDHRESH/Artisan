@@ -28,7 +28,7 @@ from backend.constants import (
 from backend.core.embeddings import EmbeddingClient
 
 
-class OllamaClient:
+class CloudLLMClient:
     """
     Backwards compatible interface used across the codebase.
     Under the hood it routes requests to Groq (remote) and falls back to
@@ -41,6 +41,7 @@ class OllamaClient:
         groq_api_key: Optional[str] = None,
         openrouter_api_key: Optional[str] = None,
         gemini_api_key: Optional[str] = None,
+        openai_api_key: Optional[str] = None,
     ):
         self.provider = (llm_provider or settings.llm_provider or "groq").lower()
 
@@ -61,6 +62,11 @@ class OllamaClient:
         self.gemini_api_key = gemini_api_key or settings.gemini_api_key
         self.gemini_model = settings.gemini_model or GEMINI_MODEL_DEFAULT
         self.gemini_base_url = "https://generativelanguage.googleapis.com/v1beta"
+
+        self.openai_api_key = openai_api_key or settings.openai_api_key
+        self.openai_reasoning_model = settings.openai_reasoning_model
+        self.openai_fast_model = settings.openai_fast_model
+        self.openai_base_url = "https://api.openai.com/v1"
 
         self.reasoning_model = settings.reasoning_model or REASONING_MODEL_DEFAULT
         self.fast_model = settings.fast_model or FAST_MODEL_DEFAULT
@@ -119,6 +125,13 @@ class OllamaClient:
                     return await self._generate_gemini(
                         prompt=prompt,
                         model=self.gemini_model,
+                        system=system,
+                        temperature=temperature,
+                    )
+                if provider == "openai":
+                    return await self._generate_openai(
+                        prompt=prompt,
+                        model=self.openai_reasoning_model,
                         system=system,
                         temperature=temperature,
                     )
@@ -199,6 +212,7 @@ class OllamaClient:
             "groq": await self._ping_provider("groq"),
             "openrouter": await self._ping_provider("openrouter"),
             "gemini": await self._ping_provider("gemini"),
+            "openai": await self._ping_provider("openai"),
         }
 
     async def ensure_available(self) -> Dict[str, bool]:
@@ -247,15 +261,15 @@ class OllamaClient:
         chain: List[str] = []
         preferred: List[str] = []
 
-        if self.provider in {"groq", "openrouter", "gemini"}:
+        if self.provider in {"groq", "openrouter", "gemini", "openai"}:
             preferred.append(self.provider)
 
         if is_complex_task:
             # For complex tasks, prioritize capability over cost
-            ordering = preferred + ["groq", "openrouter", "gemini"]
+            ordering = preferred + ["groq", "openai", "openrouter", "gemini"]
         else:
             # For simple tasks, prioritize cost-effectiveness
-            ordering = ["groq", "openrouter", "gemini"]  # No preference, first available
+            ordering = ["groq", "openai", "openrouter", "gemini"]  # No preference, first available
 
         seen = set()
 
@@ -412,6 +426,51 @@ class OllamaClient:
                 parts = candidates[0].get("content", {}).get("parts") or []
                 return " ".join(part.get("text", "") for part in parts)
 
+    @property
+    def _openai_headers(self) -> Dict[str, str]:
+        if not self.openai_api_key:
+            raise RuntimeError("OPENAI_API_KEY is not configured.")
+        return {
+            "Authorization": f"Bearer {self.openai_api_key}",
+            "Content-Type": "application/json",
+        }
+
+    async def _generate_openai(
+        self,
+        prompt: str,
+        model: str,
+        system: Optional[str],
+        temperature: float,
+    ) -> str:
+        messages = []
+        if system:
+            messages.append({"role": "system", "content": system})
+        messages.append({"role": "user", "content": prompt})
+
+        payload = {
+            "model": model,
+            "messages": messages,
+            "temperature": temperature,
+            "max_tokens": 2048,
+            "stream": False,
+        }
+
+        logger.info(f"OpenAI generating with {model}: {prompt[:100]}...")
+        async with aiohttp.ClientSession() as session:
+            async with session.post(
+                f"{self.openai_base_url}/chat/completions",
+                headers=self._openai_headers,
+                json=payload,
+                timeout=aiohttp.ClientTimeout(total=60),
+            ) as response:
+                if response.status != 200:
+                    error_text = await response.text()
+                    raise RuntimeError(f"OpenAI error ({response.status}): {error_text}")
+
+                data = await response.json()
+                content = data["choices"][0]["message"]["content"]
+                return content
+
     async def _ping_provider(self, provider: str) -> bool:
         """
         Lightweight provider probe used for readiness checks.
@@ -446,19 +505,28 @@ class OllamaClient:
                         timeout=aiohttp.ClientTimeout(total=5),
                     ) as response:
                         return response.status == 200
+            if provider == "openai" and self.openai_api_key:
+                headers = self._openai_headers
+                async with aiohttp.ClientSession() as session:
+                    async with session.get(
+                        f"{self.openai_base_url}/models",
+                        headers=headers,
+                        timeout=aiohttp.ClientTimeout(total=5),
+                    ) as response:
+                        return response.status == 200
         except Exception as exc:  # noqa: BLE001
             logger.warning(f"{provider} health check failed: {exc}")
 
         return False
 
 # Backwards compatible alias for clarity
-CloudLLMClient = OllamaClient
+CloudLLMClient = CloudLLMClient
 
 # ----------------------------------------------------------------------
 # Basic smoke test
 # ----------------------------------------------------------------------
-async def test_ollama_client():
-    client = OllamaClient()
+async def test_cloud_llm_client():
+    client = CloudLLMClient()
 
     print("Testing reasoning task (Groq preferred)...")
     reply = await client.reasoning_task(

@@ -3,7 +3,7 @@ RAG Engine - Retrieval Augmented Generation implementation
 """
 from typing import List, Dict, Optional
 from backend.config import settings
-from backend.core.ollama_client import OllamaClient
+from backend.core.cloud_llm_client import CloudLLMClient
 from backend.core.vector_store import ArtisanVectorStore
 from loguru import logger
 
@@ -14,8 +14,8 @@ class RAGEngine:
     Retrieves relevant documents from vector store and uses them as context
     """
     
-    def __init__(self, ollama_client: OllamaClient, vector_store: ArtisanVectorStore):
-        self.ollama = ollama_client
+    def __init__(self, cloud_llm_client: CloudLLMClient, vector_store: ArtisanVectorStore):
+        self.cloud_llm = cloud_llm_client
         self.vector_store = vector_store
     
     async def generate_with_context(
@@ -60,13 +60,13 @@ User query: {query}
 Provide a helpful answer based on the context above. If the context doesn't contain relevant information, say so."""
         
         if use_reasoning:
-            response = await self.ollama.reasoning_task(
+            response = await self.cloud_llm.reasoning_task(
                 prompt=prompt,
                 system=system_prompt
             )
             model_used = settings.reasoning_model
         else:
-            response = await self.ollama.fast_task(
+            response = await self.cloud_llm.fast_task(
                 prompt=prompt,
                 system=system_prompt
             )
@@ -146,7 +146,7 @@ New query: {query}
 
 Respond based on the user's history and context."""
         
-        response = await self.ollama.reasoning_task(prompt=prompt)
+        response = await self.cloud_llm.reasoning_task(prompt=prompt)
         
         return {
             "response": response,

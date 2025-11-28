@@ -5,7 +5,7 @@ These can be used as templates for creating more tests
 import pytest
 import asyncio
 from backend.agents.profile_analyst import ProfileAnalystAgent
-from backend.core.ollama_client import OllamaClient
+from backend.core.cloud_llm_client import CloudLLMClient
 from backend.core.vector_store import ArtisanVectorStore
 
 
@@ -15,14 +15,14 @@ class TestExamples:
     
     @pytest.fixture
     async def setup(self):
-        ollama = OllamaClient()
+        llm = CloudLLMClient()
         vector_store = ArtisanVectorStore()
-        yield {'ollama': ollama, 'vector_store': vector_store}
+        yield {'llm': llm, 'vector_store': vector_store}
     
     async def test_potter_example(self, setup):
         """Example: Blue pottery artisan from Jaipur"""
         agent = ProfileAnalystAgent(
-            setup['ollama'],
+            setup['llm'],
             setup['vector_store']
         )
         
@@ -40,7 +40,7 @@ class TestExamples:
     async def test_weaver_example(self, setup):
         """Example: Banarasi silk weaver"""
         agent = ProfileAnalystAgent(
-            setup['ollama'],
+            setup['llm'],
             setup['vector_store']
         )
         
@@ -56,7 +56,7 @@ class TestExamples:
     async def test_metalworker_example(self, setup):
         """Example: Brass metalworker from Moradabad"""
         agent = ProfileAnalystAgent(
-            setup['ollama'],
+            setup['llm'],
             setup['vector_store']
         )
         
