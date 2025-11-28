@@ -23,14 +23,14 @@ class GrowthMarketerAgent(BaseAgent):
     Uses: Gemma 3 4B for complex market analysis
     """
     
-    def __init__(self, cloud_llm_client, vector_store, scraper_service):
+    def __init__(self, cloud_llm_client, vector_store, scraper_service=None):
         super().__init__(
             name="Growth Marketer",
             description="Identifies growth opportunities and market trends",
             cloud_llm_client=cloud_llm_client,
             vector_store=vector_store
         )
-        self.scraper = scraper_service
+        self.scraper = scraper_service or WebScraperService()
     
     async def analyze(self, user_profile: Dict) -> Dict:
         """
@@ -156,7 +156,7 @@ For each brief, provide:
 
 Return as JSON array with exactly 14 briefs. Each must be practical and implementable."""
 
-        result_text = await self.ollama.reasoning_task(briefs_prompt)
+        result_text = await self.cloud_llm.reasoning_task(briefs_prompt)
 
         try:
             if "```json" in result_text:
@@ -247,7 +247,7 @@ For each idea, provide in JSON format:
 
 Return ONLY valid JSON array."""
 
-        result = await self.ollama.reasoning_task(innovation_prompt)
+        result = await self.cloud_llm.reasoning_task(innovation_prompt)
         
         try:
             if "```json" in result:
@@ -340,7 +340,7 @@ Provide pricing insights in JSON format:
 
 Return ONLY valid JSON."""
 
-        result = await self.ollama.reasoning_task(pricing_prompt)
+        result = await self.cloud_llm.reasoning_task(pricing_prompt)
         
         try:
             if "```json" in result:
@@ -399,7 +399,7 @@ Provide realistic estimates in JSON:
 
 All amounts in Indian Rupees. Return ONLY valid JSON."""
 
-            result = await self.ollama.reasoning_task(roi_prompt)
+            result = await self.cloud_llm.reasoning_task(roi_prompt)
             
             try:
                 if "```json" in result:
@@ -451,7 +451,7 @@ Provide in JSON format:
 
 Return ONLY valid JSON array with top 5 channels."""
 
-        result = await self.ollama.reasoning_task(channels_prompt)
+        result = await self.cloud_llm.reasoning_task(channels_prompt)
         
         try:
             if "```json" in result:

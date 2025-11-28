@@ -45,15 +45,20 @@ class SupervisorAgent(BaseAgent):
         self.scraper = scraper_service or WebScraperService()
         self.maps = maps_service or MapsService()
         self.tools = default_tool_registry()
-        self.planner = Planner(self.ollama)
+        self.planner = Planner(self.cloud_llm)
         self.guardrails = Guardrails()
 
         # Worker agent factories (lazy to avoid heavy setup when not used)
         self._workers: Dict[str, Callable[[], BaseAgent]] = {
-            "profile_analyst": lambda: ProfileAnalystAgent(self.ollama, self.vector_store),
-            "supply_hunter": lambda: SupplyHunterAgent(self.ollama, self.vector_store, self.scraper),
-            "growth_marketer": lambda: GrowthMarketerAgent(self.ollama, self.vector_store, self.scraper),
-            "event_scout": lambda: EventScoutAgent(self.ollama, self.vector_store, self.scraper, self.maps),
+            "profile_analyst": lambda: ProfileAnalystAgent(cloud_llm_client=self.cloud_llm, vector_store=self.vector_store),
+            "supply_hunter": lambda: SupplyHunterAgent(cloud_llm_client=self.cloud_llm, vector_store=self.vector_store, scraper_service=self.scraper),
+            "growth_marketer": lambda: GrowthMarketerAgent(cloud_llm_client=self.cloud_llm, vector_store=self.vector_store, scraper_service=self.scraper),
+            "event_scout": lambda: EventScoutAgent(
+                cloud_llm_client=self.cloud_llm,
+                vector_store=self.vector_store,
+                scraper_service=self.scraper,
+                maps_service=self.maps,
+            ),
         }
 
     async def analyze(self, user_profile: Dict) -> Dict:
@@ -134,7 +139,7 @@ class SupervisorAgent(BaseAgent):
             "Given the mission goal and the artifacts from each step, produce a concise outcome summary "
             "with next-best actions and any blockers. Return JSON with keys: summary, recommended_next_steps[]."
         )
-        summary_text = await self.ollama.fast_task(
+        summary_text = await self.cloud_llm.fast_task(
             summary_prompt + "\nGOAL: " + goal + "\nARTIFACTS: " + str(artifacts)[:4000]
         )
 
@@ -176,7 +181,7 @@ Provide detailed forecast including:
 
 Return structured analysis."""
 
-            intelligence_report["market_forecast"] = await self.ollama.reasoning_task(forecast_prompt)
+            intelligence_report["market_forecast"] = await self.cloud_llm.reasoning_task(forecast_prompt)
 
             # 2. COMPETITIVE INTELLIGENCE
             comp_intel_prompt = f"""Conduct competitive intelligence analysis for the artisan business.
@@ -195,7 +200,7 @@ Analyze:
 
 Return actionable competitive strategy."""
 
-            intelligence_report["competitive_intelligence"] = await self.ollama.reasoning_task(comp_intel_prompt)
+            intelligence_report["competitive_intelligence"] = await self.cloud_llm.reasoning_task(comp_intel_prompt)
 
             # 3. AUTOMATED BUSINESS WORKFLOWS
             workflow_prompt = f"""Design automated business workflows to execute: {goal[:150]}
@@ -213,7 +218,7 @@ Design:
 
 Return complete workflow design with triggers and automation rules."""
 
-            intelligence_report["automated_workflows"] = await self.ollama.reasoning_task(workflow_prompt)
+            intelligence_report["automated_workflows"] = await self.cloud_llm.reasoning_task(workflow_prompt)
 
             # 4. PREDICTIVE ANALYTICS
             predictive_prompt = f"""Generate predictive analytics for artisan business optimization.
@@ -232,7 +237,7 @@ Predict:
 
 Return predictive models with confidence levels."""
 
-            intelligence_report["predictive_analytics"] = await self.ollama.reasoning_task(predictive_prompt)
+            intelligence_report["predictive_analytics"] = await self.cloud_llm.reasoning_task(predictive_prompt)
 
             # 5. STRATEGIC RECOMMENDATIONS
             strategy_prompt = f"""Develop strategic recommendations for artisan business growth.
@@ -252,7 +257,7 @@ Develop:
 
 Return executive strategy document."""
 
-            intelligence_report["strategic_recommendations"] = await self.ollama.reasoning_task(strategy_prompt)
+            intelligence_report["strategic_recommendations"] = await self.cloud_llm.reasoning_task(strategy_prompt)
 
             # 6. RISK ASSESSMENT
             risk_prompt = f"""Comprehensive risk assessment for artisan business operations.
@@ -272,7 +277,7 @@ Assess risks in:
 
 Return risk mitigation strategies with priority levels."""
 
-            intelligence_report["risk_assessment"] = await self.ollama.reasoning_task(risk_prompt)
+            intelligence_report["risk_assessment"] = await self.cloud_llm.reasoning_task(risk_prompt)
 
             # 7. PERFORMANCE OPTIMIZATION
             optimization_prompt = f"""Design performance optimization framework for artisan business.
@@ -292,7 +297,7 @@ Optimize:
 
 Return comprehensive optimization roadmap."""
 
-            intelligence_report["performance_optimization"] = await self.ollama.reasoning_task(optimization_prompt)
+            intelligence_report["performance_optimization"] = await self.cloud_llm.reasoning_task(optimization_prompt)
 
         except Exception as e:
             logger.error(f"GOD MODE intelligence failed: {e}")

@@ -24,7 +24,7 @@ class ProfileAnalystAgent(BaseAgent):
     Uses: Gemma 3 4B (reasoning model) for deep understanding
     """
     
-    def __init__(self, cloud_llm_client, vector_store):
+    def __init__(self, cloud_llm_client, vector_store=None):
         super().__init__(
             name="Profile Analyst",
             description="Infers artisan needs from organic conversation",
@@ -131,7 +131,7 @@ Extract the following in JSON format:
 
 Return ONLY valid JSON, no other text."""
 
-            extraction_result = await self.ollama.reasoning_task(extraction_prompt)
+            extraction_result = await self.cloud_llm.reasoning_task(extraction_prompt)
 
             self.log_execution("extraction", {"raw_result": extraction_result})
 
@@ -169,7 +169,7 @@ Provide in JSON format:
 
 Return ONLY valid JSON."""
 
-            needs_result = await self.ollama.reasoning_task(needs_prompt)
+            needs_result = await self.cloud_llm.reasoning_task(needs_prompt)
 
             try:
                 if "```json" in needs_result:
@@ -193,7 +193,7 @@ What are 3-5 adjacent products or markets they could explore? Consider:
 
 Return as JSON array: ["adjacency 1", "adjacency 2", ...]"""
 
-            adjacency_result = await self.ollama.reasoning_task(adjacency_prompt)
+            adjacency_result = await self.cloud_llm.reasoning_task(adjacency_prompt)
 
             try:
                 if "```json" in adjacency_result:

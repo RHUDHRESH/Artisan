@@ -16,7 +16,7 @@ class Settings(BaseSettings):
     """Application settings"""
 
     # LLM Provider Configuration - FREE TRIAL OPTIMIZED! 💰
-    llm_provider: str = "groq"  # Start with cheap Groq, fallback to others
+    llm_provider: str = "openai"  # Start with cheap Groq, fallback to others
     groq_api_key: Optional[str] = None
 
     # Cloud LLM Configuration - Cost-optimized free trials
@@ -27,12 +27,12 @@ class Settings(BaseSettings):
     gemini_api_key: Optional[str] = None
     gemini_model: str = "gemini-1.5-flash"  # Use basic flash, not 002 (more expensive)
     openai_api_key: Optional[str] = None
-    openai_reasoning_model: str = "gpt-4o"
-    openai_fast_model: str = "gpt-3.5-turbo"
+    openai_reasoning_model: str = "gpt-5-nano"
+    openai_fast_model: str = "gpt-5-nano"
 
 
     # Model Configuration - COST-EFFECTIVE free trial setup
-    embedding_model: str = EMBEDDING_MODEL_DEFAULT
+    embedding_model: str = "openai/text-embedding-3-small"
     reasoning_model: str = "llama-3.1-70b-versatile"  # Groq's best cheap model
     fast_model: str = "llama-3.1-8b-instant"  # Groq's fast cheap model
 

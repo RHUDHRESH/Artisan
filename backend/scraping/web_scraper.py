@@ -382,7 +382,7 @@ class WebScraperService:
         # Broadcast scraping start
         if HAS_WEBSOCKET:
             try:
-                manager.broadcast({
+                await manager.broadcast({
                     "type": "scraping_progress",
                     "url": url,
                     "status": "scraping",

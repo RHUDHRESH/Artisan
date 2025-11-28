@@ -38,6 +38,7 @@ class BaseAgent(ABC):
 
         self.name = name
         self.description = description
+        self.cloud_llm = resolved_llm
         self.llm = resolved_llm  # Use generic name 'llm' instead of 'ollama'
         self.ollama = resolved_llm  # Keep backward compatibility
         self.vector_store = vector_store
