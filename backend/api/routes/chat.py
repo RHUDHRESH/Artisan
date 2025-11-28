@@ -3,7 +3,7 @@ Chat API endpoints
 """
 from fastapi import APIRouter, HTTPException
 from backend.models import ChatRequest, ChatResponse, ChatMessage
-from backend.core.ollama_client import OllamaClient
+from backend.core.cloud_llm_client import CloudLLMClient
 from backend.config import settings
 from loguru import logger
 import time
@@ -27,7 +27,7 @@ async def send_message(request: ChatRequest):
         context += f"user: {request.message}\n"
 
         # Use fast model for simple queries, reasoning model for complex ones
-        async with OllamaClient() as client:
+        async with CloudLLMClient() as client:
             await client.ensure_available()
             # Simple classification to route to correct model
             classification_prompt = f"Classify this query as 'simple' or 'complex': {request.message}"

@@ -5,7 +5,7 @@ import pytest
 import asyncio
 from backend.agents.base_agent import BaseAgent
 from backend.agents.profile_analyst import ProfileAnalystAgent
-from backend.core.ollama_client import OllamaClient
+from backend.core.cloud_llm_client import CloudLLMClient
 from backend.core.vector_store import ArtisanVectorStore
 
 
@@ -16,11 +16,11 @@ class TestAgents:
     @pytest.fixture
     async def setup_agents(self):
         """Setup agents for testing"""
-        ollama = OllamaClient()
+        llm = CloudLLMClient()
         vector_store = ArtisanVectorStore()
         
         yield {
-            'ollama': ollama,
+            'llm': llm,
             'vector_store': vector_store
         }
     
@@ -30,7 +30,7 @@ class TestAgents:
         
         # Create a concrete agent instance
         agent = ProfileAnalystAgent(
-            components['ollama'],
+            components['llm'],
             components['vector_store']
         )
         
@@ -53,7 +53,7 @@ class TestAgents:
         components = setup_agents
         
         agent = ProfileAnalystAgent(
-            components['ollama'],
+            components['llm'],
             components['vector_store']
         )
         
@@ -90,7 +90,7 @@ class TestAgents:
         components = setup_agents
         
         agent = ProfileAnalystAgent(
-            components['ollama'],
+            components['llm'],
             components['vector_store']
         )
         

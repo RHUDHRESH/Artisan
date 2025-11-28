@@ -24,11 +24,11 @@ class ProfileAnalystAgent(BaseAgent):
     Uses: Gemma 3 4B (reasoning model) for deep understanding
     """
     
-    def __init__(self, ollama_client, vector_store):
+    def __init__(self, cloud_llm_client, vector_store):
         super().__init__(
             name="Profile Analyst",
             description="Infers artisan needs from organic conversation",
-            ollama_client=ollama_client,
+            cloud_llm_client=cloud_llm_client,
             vector_store=vector_store
         )
     
@@ -309,13 +309,13 @@ Return as JSON array: ["adjacency 1", "adjacency 2", ...]"""
 
 # Test the Profile Analyst Agent
 async def test_profile_analyst():
-    from backend.core.ollama_client import OllamaClient
+    from backend.core.cloud_llm_client import CloudLLMClient
     from backend.core.vector_store import ArtisanVectorStore
     
-    ollama = OllamaClient()
+    llm = CloudLLMClient()
     vector_store = ArtisanVectorStore()
     
-    agent = ProfileAnalystAgent(ollama, vector_store)
+    agent = ProfileAnalystAgent(llm, vector_store)
     
     # Test input
     test_input = {

@@ -8,7 +8,7 @@ from enum import Enum
 from typing import Any, Dict, Optional
 
 from backend.config import settings
-from backend.core.ollama_client import CloudLLMClient
+from backend.core.cloud_llm_client import CloudLLMClient
 
 
 class LLMProvider(str, Enum):

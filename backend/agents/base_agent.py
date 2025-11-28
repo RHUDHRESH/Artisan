@@ -3,7 +3,7 @@ Abstract base class for all agents
 """
 from abc import ABC, abstractmethod
 from typing import Any, Dict, List, Optional, Union
-from backend.core.ollama_client import OllamaClient
+from backend.core.cloud_llm_client import CloudLLMClient
 from backend.core.vector_store import ArtisanVectorStore
 from loguru import logger
 from backend.agents.framework.tools import global_tool_registry
@@ -19,19 +19,19 @@ class BaseAgent(ABC):
         self,
         name: str,
         description: str,
-        llm_client: Optional[Union[OllamaClient, Any]] = None,  # Can be OllamaClient or LLMManager
+        llm_client: Optional[Union[CloudLLMClient, Any]] = None,  # Can be CloudLLMClient or LLMManager
         vector_store: Optional[ArtisanVectorStore] = None,
-        ollama_client: Optional[Union[OllamaClient, Any]] = None,
+        cloud_llm_client: Optional[Union[CloudLLMClient, Any]] = None,
     ):
-        resolved_llm = llm_client or ollama_client
+        resolved_llm = llm_client or cloud_llm_client
 
-        if llm_client is not None and ollama_client is not None and llm_client is not ollama_client:
+        if llm_client is not None and cloud_llm_client is not None and llm_client is not cloud_llm_client:
             logger.warning(
-                f"Both 'llm_client' and 'ollama_client' provided to {name}. Defaulting to 'llm_client'."
+                f"Both 'llm_client' and 'cloud_llm_client' provided to {name}. Defaulting to 'llm_client'."
             )
 
         if resolved_llm is None:
-            raise ValueError("BaseAgent requires either 'llm_client' or 'ollama_client'")
+            raise ValueError("BaseAgent requires either 'llm_client' or 'cloud_llm_client'")
 
         if vector_store is None:
             raise ValueError("BaseAgent requires a valid 'vector_store' instance")

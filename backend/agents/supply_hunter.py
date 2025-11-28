@@ -28,11 +28,11 @@ class SupplyHunterAgent(BaseAgent):
     Uses: Gemma 3 4B for analysis, 1B for classification
     """
     
-    def __init__(self, ollama_client, vector_store, scraper_service):
+    def __init__(self, cloud_llm_client, vector_store, scraper_service):
         super().__init__(
             name="Supply Hunter",
             description="Finds and verifies suppliers for artisan materials",
-            ollama_client=ollama_client,
+            cloud_llm_client=cloud_llm_client,
             vector_store=vector_store
         )
         self.scraper = scraper_service
@@ -304,7 +304,7 @@ Extract in JSON format:
 
 Return ONLY valid JSON."""
 
-            result = await self.ollama.reasoning_task(extraction_prompt)
+            result = await self.cloud_llm.reasoning_task(extraction_prompt)
             
             # Parse JSON
             try:
@@ -457,7 +457,7 @@ Format as JSON array:
 
 Return ONLY valid JSON array."""
 
-            result = await self.ollama.reasoning_task(fallback_prompt)
+            result = await self.cloud_llm.reasoning_task(fallback_prompt)
 
             try:
                 if "```json" in result:
@@ -808,15 +808,15 @@ Return ONLY valid JSON array."""
 
 # Test the Supply Hunter Agent
 async def test_supply_hunter():
-    from backend.core.ollama_client import OllamaClient
+    from backend.core.cloud_llm_client import CloudLLMClient
     from backend.core.vector_store import ArtisanVectorStore
     from backend.scraping.web_scraper import WebScraperService
     
-    ollama = OllamaClient()
+    llm = CloudLLMClient()
     vector_store = ArtisanVectorStore()
     scraper = WebScraperService()
     
-    agent = SupplyHunterAgent(ollama, vector_store, scraper)
+    agent = SupplyHunterAgent(llm, vector_store, scraper)
     
     # Test input
     test_input = {

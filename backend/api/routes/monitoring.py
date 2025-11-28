@@ -151,9 +151,9 @@ async def check_llm_health() -> Dict[str, Any]:
     """Check LLM provider availability."""
     try:
         from backend.config import settings
-        from backend.core.ollama_client import OllamaClient
+        from backend.core.cloud_llm_client import CloudLLMClient
 
-        client = OllamaClient()
+        client = CloudLLMClient()
         statuses = await client.provider_statuses()
         active = next((p for p, ok in statuses.items() if ok), None)
         is_healthy = any(statuses.values())
