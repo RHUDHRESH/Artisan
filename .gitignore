@@ -27,6 +27,7 @@ venv/
 env/
 ENV/
 .venv
+venvsartisan/
 
 # Environment variables
 .env
@@ -62,6 +63,7 @@ Thumbs.db
 .pytest_cache/
 .coverage
 htmlcov/
+coverage.xml
 
 # Playwright
 .playwright/

@@ -82,6 +82,10 @@ NEXT_PUBLIC_WS_URL=ws://localhost:8000
 
 # CORS for production
 CORS_ORIGINS=https://your-frontend.vercel.app
+
+# Embedding model (optional, defaults to OpenRouter's text-embedding-3-large)
+# If using Nomic on OpenRouter, use "nomic-ai/nomic-embed-text-v1"
+EMBEDDING_MODEL=nomic-ai/nomic-embed-text-v1
 ```
 
 If `TAVILY_API_KEY`/`SERPAPI_KEY` are missing, the Supply Hunter, Growth Marketer, and Event Scout agents will stop early and surface a blocking message telling you to add a key.
