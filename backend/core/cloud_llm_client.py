@@ -100,63 +100,48 @@ class CloudLLMClient:
         # Check complexity and decide if expensive models are needed
         is_complex_task = self._is_complex_task(prompt, system)
 
-        for provider in self._provider_chain(is_complex_task):
-            try:
-                if provider == "groq":
-                    return await self._generate_groq(
-                        prompt=prompt,
-                        model=target_model,
-                        system=system,
-                        temperature=temperature,
-                    )
-                if provider == "openrouter":
-                    or_model = (
-                        self.openrouter_reasoning_model
-                        if target_model == self.reasoning_model
-                        else self.openrouter_fast_model
-                    )
-                    return await self._generate_openrouter(
-                        prompt=prompt,
-                        model=or_model,
-                        system=system,
-                        temperature=temperature,
-                    )
-                if provider == "gemini":
-                    return await self._generate_gemini(
-                        prompt=prompt,
-                        model=self.gemini_model,
-                        system=system,
-                        temperature=temperature,
-                    )
-                if provider == "openai":
-                    return await self._generate_openai(
-                        prompt=prompt,
-                        model=self.openai_reasoning_model,
-                        system=system,
-                        temperature=temperature,
-                    )
-            except Exception as exc:  # noqa: BLE001 - propagate aggregated
-                msg = f"{provider} generation failed: {exc}"
-                logger.warning(msg)
-                errors.append(msg)
-                continue
-
-        # If all providers failed, try a final cheap fallback
+        provider = self.provider
         try:
-            if self.groq_api_key:
-                logger.warning("All providers failed, trying Groq one more time with shorter response...")
+            if provider == "groq":
                 return await self._generate_groq(
-                    prompt=prompt[:1000] + "...",  # Truncate prompt
-                    model=self.fast_model,  # Use fast model
+                    prompt=prompt,
+                    model=target_model,
                     system=system,
                     temperature=temperature,
                 )
-        except Exception as final_exc:
-            errors.append(f"Final Groq fallback failed: {final_exc}")
+            if provider == "openrouter":
+                or_model = (
+                    self.openrouter_reasoning_model
+                    if target_model == self.reasoning_model
+                    else self.openrouter_fast_model
+                )
+                return await self._generate_openrouter(
+                    prompt=prompt,
+                    model=or_model,
+                    system=system,
+                    temperature=temperature,
+                )
+            if provider == "gemini":
+                return await self._generate_gemini(
+                    prompt=prompt,
+                    model=self.gemini_model,
+                    system=system,
+                    temperature=temperature,
+                )
+            if provider == "openai":
+                return await self._generate_openai(
+                    prompt=prompt,
+                    model=self.openai_reasoning_model,
+                    system=system,
+                    temperature=temperature,
+                )
+        except Exception as exc:  # noqa: BLE001 - propagate aggregated
+            msg = f"{provider} generation failed: {exc}"
+            logger.warning(msg)
+            errors.append(msg)
 
         raise RuntimeError(
-            "All LLM providers failed. Free trial limits likely exceeded. "
-            + "Consider enabling only one provider and waiting for rate limits to reset. "
+            f"LLM provider '{provider}' failed. "
             + " | ".join(errors)
         )
 
@@ -253,48 +238,6 @@ class CloudLLMClient:
         keyword_count = sum(1 for keyword in complex_keywords if keyword in combined_text)
 
         return keyword_count >= 2  # 2+ complex keywords = complex task
-
-    def _provider_chain(self, is_complex_task: bool = False) -> List[str]:
-        """
-        Ordered list of providers to try based on configured API keys and cost optimization.
-        """
-        chain: List[str] = []
-        preferred: List[str] = []
-
-        if self.provider in {"groq", "openrouter", "gemini", "openai"}:
-            preferred.append(self.provider)
-
-        if is_complex_task:
-            # For complex tasks, prioritize capability over cost
-            ordering = preferred + ["groq", "openai", "openrouter", "gemini"]
-        else:
-            # For simple tasks, prioritize cost-effectiveness
-            ordering = ["groq", "openai", "openrouter", "gemini"]  # No preference, first available
-
-        seen = set()
-
-        for provider in ordering:
-            if provider in seen:
-                continue
-            seen.add(provider)
-
-            if provider == "groq" and self.groq_api_key:
-                chain.append("groq")
-            elif provider == "openrouter" and self.openrouter_api_key:
-                # For complex tasks, prefer better OpenRouter models if expensive models enabled
-                if is_complex_task and hasattr(settings, 'openrouter_reasoning_model'):
-                    # Already configured for better models in settings
-                    pass
-                chain.append("openrouter")
-            elif provider == "gemini" and self.gemini_api_key:
-                # Only use Gemini for complex tasks if expensive models enabled
-                if is_complex_task or self.provider == "gemini":
-                    chain.append("gemini")
-
-        if not chain:
-            raise RuntimeError("No cloud LLM provider configured. Set at least GROQ_API_KEY for free trial.")
-
-        return chain
 
     @property
     def _groq_headers(self) -> Dict[str, str]:
