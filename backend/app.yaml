@@ -16,7 +16,8 @@ automatic_scaling:
 # Environment variables
 env_variables:
   # LLM Provider Configuration
-  LLM_PROVIDER: "groq"
+  LLM_PROVIDER: "openai"
+  OPENAI_API_KEY: ""
   GROQ_API_KEY: ""
   OPENROUTER_API_KEY: ""
   GEMINI_API_KEY: ""

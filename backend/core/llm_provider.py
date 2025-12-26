@@ -1,5 +1,5 @@
 """
-Cloud LLM provider manager (Groq → OpenRouter → Gemini).
+Cloud LLM provider manager (OpenAI → Groq → OpenRouter → Gemini).
 Removes any dependency on local runtimes while keeping the previous interface.
 """
 from __future__ import annotations
@@ -14,6 +14,7 @@ from backend.core.cloud_llm_client import CloudLLMClient
 class LLMProvider(str, Enum):
     """Supported hosted LLM providers."""
 
+    OPENAI = "openai"
     GROQ = "groq"
     OPENROUTER = "openrouter"
     GEMINI = "gemini"
@@ -29,6 +30,7 @@ class LLMManager:
     def __init__(
         self,
         primary_provider: Optional[LLMProvider | str] = None,
+        openai_api_key: Optional[str] = None,
         groq_api_key: Optional[str] = None,
         openrouter_api_key: Optional[str] = None,
         gemini_api_key: Optional[str] = None,
@@ -36,10 +38,11 @@ class LLMManager:
         preferred = (
             primary_provider.value if isinstance(primary_provider, LLMProvider) else primary_provider
         ) or settings.llm_provider
-        self.primary_provider = (preferred or "groq").lower()
+        self.primary_provider = (preferred or "openai").lower()
 
         self.client = CloudLLMClient(
             llm_provider=self.primary_provider,
+            openai_api_key=openai_api_key or settings.openai_api_key,
             groq_api_key=groq_api_key or settings.groq_api_key,
             openrouter_api_key=openrouter_api_key or settings.openrouter_api_key,
             gemini_api_key=gemini_api_key or settings.gemini_api_key,

@@ -2,9 +2,10 @@
 Unified cloud LLM client for Artisan Hub.
 
 Order of operations:
-1) Groq (primary)
-2) OpenRouter (fallback)
-3) Gemini (fallback)
+1) OpenAI (primary)
+2) Groq (fallback)
+3) OpenRouter (fallback)
+4) Gemini (fallback)
 
 No local runtimes are required; everything runs against hosted APIs.
 """
@@ -43,7 +44,7 @@ class CloudLLMClient:
         gemini_api_key: Optional[str] = None,
         openai_api_key: Optional[str] = None,
     ):
-        self.provider = (llm_provider or settings.llm_provider or "groq").lower()
+        self.provider = (llm_provider or settings.llm_provider or "openai").lower()
 
         self.groq_api_key = groq_api_key or settings.groq_api_key
         self.groq_api_base = "https://api.groq.com/openai/v1"
@@ -129,9 +130,14 @@ class CloudLLMClient:
                         temperature=temperature,
                     )
                 if provider == "openai":
+                    openai_model = (
+                        self.openai_reasoning_model
+                        if target_model == self.reasoning_model
+                        else self.openai_fast_model
+                    )
                     return await self._generate_openai(
                         prompt=prompt,
-                        model=self.openai_reasoning_model,
+                        model=openai_model,
                         system=system,
                         temperature=temperature,
                     )
@@ -221,7 +227,7 @@ class CloudLLMClient:
         if not any(statuses.values()):
             raise RuntimeError(
                 "No cloud LLM providers are available. "
-                "Set at least one of GROQ_API_KEY, OPENROUTER_API_KEY, or GEMINI_API_KEY "
+                "Set at least one of OPENAI_API_KEY, GROQ_API_KEY, OPENROUTER_API_KEY, or GEMINI_API_KEY "
                 "to enable AI features."
             )
         return statuses
@@ -261,15 +267,15 @@ class CloudLLMClient:
         chain: List[str] = []
         preferred: List[str] = []
 
-        if self.provider in {"groq", "openrouter", "gemini", "openai"}:
+        if self.provider in {"openai", "groq", "openrouter", "gemini"}:
             preferred.append(self.provider)
 
         if is_complex_task:
             # For complex tasks, prioritize capability over cost
-            ordering = preferred + ["groq", "openai", "openrouter", "gemini"]
+            ordering = preferred + ["openai", "groq", "openrouter", "gemini"]
         else:
-            # For simple tasks, prioritize cost-effectiveness
-            ordering = ["groq", "openai", "openrouter", "gemini"]  # No preference, first available
+            # For simple tasks, prioritize the cheapest primary provider
+            ordering = ["openai", "groq", "openrouter", "gemini"]  # No preference, first available
 
         seen = set()
 
@@ -278,7 +284,9 @@ class CloudLLMClient:
                 continue
             seen.add(provider)
 
-            if provider == "groq" and self.groq_api_key:
+            if provider == "openai" and self.openai_api_key:
+                chain.append("openai")
+            elif provider == "groq" and self.groq_api_key:
                 chain.append("groq")
             elif provider == "openrouter" and self.openrouter_api_key:
                 # For complex tasks, prefer better OpenRouter models if expensive models enabled
@@ -292,7 +300,9 @@ class CloudLLMClient:
                     chain.append("gemini")
 
         if not chain:
-            raise RuntimeError("No cloud LLM provider configured. Set at least GROQ_API_KEY for free trial.")
+            raise RuntimeError(
+                "No cloud LLM provider configured. Set at least OPENAI_API_KEY or GROQ_API_KEY for free trial."
+            )
 
         return chain
 
