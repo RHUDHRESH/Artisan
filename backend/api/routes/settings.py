@@ -14,7 +14,8 @@ router = APIRouter(prefix="/settings", tags=["settings"])
 
 class SettingsUpdate(BaseModel):
     """Settings update model"""
-    llm_provider: Optional[str] = Field(None, description="LLM provider: groq, openrouter, gemini, or auto")
+    llm_provider: Optional[str] = Field(None, description="LLM provider: openai, groq, openrouter, gemini, or auto")
+    openai_api_key: Optional[str] = Field(None, description="OpenAI API key")
     groq_api_key: Optional[str] = Field(None, description="GROQ API key")
     openrouter_api_key: Optional[str] = Field(None, description="OpenRouter API key")
     gemini_api_key: Optional[str] = Field(None, description="Gemini API key")
@@ -26,6 +27,7 @@ class SettingsUpdate(BaseModel):
 class SettingsResponse(BaseModel):
     """Settings response model"""
     llm_provider: str
+    openai_api_key_configured: bool
     groq_api_key_configured: bool
     openrouter_api_key_configured: bool
     gemini_api_key_configured: bool
@@ -41,6 +43,7 @@ async def get_settings():
     try:
         return SettingsResponse(
             llm_provider=settings.llm_provider,
+            openai_api_key_configured=bool(settings.openai_api_key),
             groq_api_key_configured=bool(settings.groq_api_key and settings.groq_api_key != "your-groq-api-key-here"),
             openrouter_api_key_configured=bool(settings.openrouter_api_key),
             gemini_api_key_configured=bool(settings.gemini_api_key),
@@ -60,13 +63,17 @@ async def update_settings(update: SettingsUpdate):
     try:
         # Update LLM provider
         if update.llm_provider:
-            if update.llm_provider not in ["groq", "openrouter", "gemini", "auto"]:
+            if update.llm_provider not in ["openai", "groq", "openrouter", "gemini", "auto"]:
                 raise HTTPException(
                     status_code=400,
-                    detail="Invalid LLM provider. Must be one of: groq, openrouter, gemini, auto"
+                    detail="Invalid LLM provider. Must be one of: openai, groq, openrouter, gemini, auto"
                 )
             settings.llm_provider = update.llm_provider
             logger.info(f"Updated LLM provider to: {update.llm_provider}")
+
+        if update.openai_api_key:
+            settings.openai_api_key = update.openai_api_key
+            logger.info("Updated OpenAI API key")
 
         # Update GROQ API key
         if update.groq_api_key:
@@ -118,6 +125,7 @@ async def check_providers_health():
         # Create LLM manager with current settings
         async with LLMManager(
             primary_provider=LLMProvider(settings.llm_provider),
+            openai_api_key=settings.openai_api_key,
             groq_api_key=settings.groq_api_key,
             openrouter_api_key=settings.openrouter_api_key,
             gemini_api_key=settings.gemini_api_key,
@@ -139,15 +147,16 @@ async def check_providers_health():
 async def test_provider(provider: str):
     """Test a specific LLM provider"""
     try:
-        if provider not in ["groq", "openrouter", "gemini"]:
+        if provider not in ["openai", "groq", "openrouter", "gemini"]:
             raise HTTPException(
                 status_code=400,
-                detail="Invalid provider. Must be one of: groq, openrouter, gemini"
+                detail="Invalid provider. Must be one of: openai, groq, openrouter, gemini"
             )
 
         # Create LLM manager with specified provider
         async with LLMManager(
             primary_provider=LLMProvider(provider),
+            openai_api_key=settings.openai_api_key,
             groq_api_key=settings.groq_api_key,
             openrouter_api_key=settings.openrouter_api_key,
             gemini_api_key=settings.gemini_api_key,
@@ -179,10 +188,14 @@ async def test_provider(provider: str):
 async def get_default_settings():
     """Get default settings for reference"""
     return {
-        "llm_provider": "groq",
+        "llm_provider": "openai",
         "cors_origins": "*",
         "log_level": "INFO",
         "backend_url": "http://localhost:8000",
+        "openai_models": {
+            "reasoning": "gpt-4o-mini",
+            "fast": "gpt-4o-mini"
+        },
         "groq_models": {
             "reasoning": "llama-3.3-70b-versatile",
             "fast": "llama-3.1-8b-instant"

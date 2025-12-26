@@ -10,6 +10,7 @@ from backend.core.llm_provider import LLMManager, LLMProvider
 @pytest.mark.unit
 def test_llm_provider_enum_values():
     """Ensure enum values match configured providers."""
+    assert LLMProvider.OPENAI.value == "openai"
     assert LLMProvider.GROQ.value == "groq"
     assert LLMProvider.OPENROUTER.value == "openrouter"
     assert LLMProvider.GEMINI.value == "gemini"
