@@ -232,6 +232,50 @@ class CloudLLMClient:
             )
         return statuses
 
+def log_provider_configuration() -> None:
+    configured = {
+        "openai": bool(settings.openai_api_key),
+        "groq": bool(settings.groq_api_key),
+        "openrouter": bool(settings.openrouter_api_key),
+        "gemini": bool(settings.gemini_api_key),
+    }
+    env_keys = {
+        "openai": "OPENAI_API_KEY",
+        "groq": "GROQ_API_KEY",
+        "openrouter": "OPENROUTER_API_KEY",
+        "gemini": "GEMINI_API_KEY",
+    }
+    configured_list = [name for name, enabled in configured.items() if enabled]
+    missing_list = [name for name, enabled in configured.items() if not enabled]
+    preferred = (settings.llm_provider or "openai").lower()
+
+    if configured_list:
+        logger.info(
+            "LLM provider keys configured: "
+            + ", ".join(configured_list)
+        )
+    else:
+        logger.error(
+            "No LLM provider keys configured. "
+            "Set OPENAI_API_KEY, GROQ_API_KEY, OPENROUTER_API_KEY, or GEMINI_API_KEY."
+        )
+
+    if missing_list:
+        logger.warning(
+            "Missing LLM provider keys for: "
+            + ", ".join(missing_list)
+        )
+
+    if preferred in env_keys and not configured.get(preferred, False):
+        logger.warning(
+            f"LLM_PROVIDER is set to '{preferred}' but {env_keys[preferred]} is not configured."
+        )
+
+    if not settings.openrouter_api_key:
+        logger.warning(
+            f"Embeddings require OPENROUTER_API_KEY (current embedding_model={settings.embedding_model})."
+        )
+
     # ------------------------------------------------------------------
     # Internal helpers
     # ------------------------------------------------------------------
