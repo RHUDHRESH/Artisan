@@ -19,14 +19,14 @@ OPENROUTER_EMBEDDING_MODEL_DEFAULT = "text-embedding-3-large"
 GEMINI_MODEL_DEFAULT = "gemini-1.5-flash"
 
 # ============================================================================
-# API TIMEOUTS & RATE LIMITS (seconds)
+# API TIMEOUTS & RATE LIMITS (seconds) - Optimized for speed
 # ============================================================================
-TAVILY_API_TIMEOUT = 30
-SERPAPI_TIMEOUT = 30
-SCRAPING_TIMEOUT = 15
-PLAYWRIGHT_TIMEOUT = 30000  # milliseconds
-PLAYWRIGHT_WAIT_TIMEOUT = 2000  # milliseconds
-WEBSOCKET_BROADCAST_TIMEOUT = 5
+TAVILY_API_TIMEOUT = 10
+SERPAPI_TIMEOUT = 10
+SCRAPING_TIMEOUT = 5
+PLAYWRIGHT_TIMEOUT = 10000  # milliseconds
+PLAYWRIGHT_WAIT_TIMEOUT = 1000  # milliseconds
+WEBSOCKET_BROADCAST_TIMEOUT = 3
 
 # ============================================================================
 # VECTOR STORE CONFIGURATION

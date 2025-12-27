@@ -1,6 +1,7 @@
 """
 Agent API endpoints
 """
+import asyncio
 from fastapi import APIRouter, HTTPException, Query
 from pydantic import BaseModel, Field, field_validator
 from typing import Optional, Dict, Any, List
@@ -61,9 +62,31 @@ async def fetch_recent_results(search_type: str, user_id: str, limit: int = 25) 
 
 async def ensure_llm_available() -> Dict[str, bool]:
     """Ensure at least one LLM provider is ready before dispatching agents."""
-    async with CloudLLMClient() as client:
-        statuses = await client.ensure_available()
-    return statuses
+    client = CloudLLMClient()
+    try:
+        statuses = await client.provider_statuses()
+    except Exception as exc:
+        logger.warning(f"LLM provider status check failed: {exc}")
+        statuses = {}
+
+    if any(statuses.values()):
+        return statuses
+
+    key_statuses = {
+        "openai": bool(client.openai_api_key),
+        "groq": bool(client.groq_api_key),
+        "openrouter": bool(client.openrouter_api_key),
+        "gemini": bool(client.gemini_api_key)
+    }
+    if any(key_statuses.values()):
+        logger.warning("LLM providers did not respond to health checks; proceeding with configured keys.")
+        return key_statuses
+
+    raise RuntimeError(
+        "No cloud LLM providers are available. "
+        "Set at least one of OPENAI_API_KEY, GROQ_API_KEY, OPENROUTER_API_KEY, or GEMINI_API_KEY "
+        "to enable AI features."
+    )
 
 
 class ProfileAnalysisRequest(BaseModel):
@@ -435,12 +458,16 @@ async def search_events(request: EventSearchRequest):
         
         agent = EventScoutAgent(llm, vector_store, scraper, maps)
         
-        result = await agent.analyze({
-            "craft_type": request.craft_type,
-            "location": request.location,
-            "travel_radius_km": request.travel_radius_km or 100,
-            "user_id": request.user_id
-        })
+        # Add timeout wrapper to prevent hanging
+        result = await asyncio.wait_for(
+            agent.analyze({
+                "craft_type": request.craft_type,
+                "location": request.location,
+                "travel_radius_km": request.travel_radius_km or 100,
+                "user_id": request.user_id
+            }),
+            timeout=60.0  # 60 second timeout
+        )
         if isinstance(result, dict) and result.get("error"):
             raise HTTPException(
                 status_code=400,

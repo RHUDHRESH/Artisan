@@ -32,8 +32,8 @@ from backend.core.embeddings import EmbeddingClient
 class CloudLLMClient:
     """
     Backwards compatible interface used across the codebase.
-    Under the hood it routes requests to Groq (remote) and falls back to
-    OpenRouter and Gemini so we remain 100% cloud-hosted.
+    Under the hood it routes requests to OpenAI and falls back to Groq,
+    OpenRouter, and Gemini so we remain 100% cloud-hosted.
     """
 
     def __init__(
@@ -232,81 +232,36 @@ class CloudLLMClient:
             )
         return statuses
 
-def log_provider_configuration() -> None:
-    configured = {
-        "openai": bool(settings.openai_api_key),
-        "groq": bool(settings.groq_api_key),
-        "openrouter": bool(settings.openrouter_api_key),
-        "gemini": bool(settings.gemini_api_key),
-    }
-    env_keys = {
-        "openai": "OPENAI_API_KEY",
-        "groq": "GROQ_API_KEY",
-        "openrouter": "OPENROUTER_API_KEY",
-        "gemini": "GEMINI_API_KEY",
-    }
-    configured_list = [name for name, enabled in configured.items() if enabled]
-    missing_list = [name for name, enabled in configured.items() if not enabled]
-    preferred = (settings.llm_provider or "openai").lower()
-
-    if configured_list:
-        logger.info(
-            "LLM provider keys configured: "
-            + ", ".join(configured_list)
-        )
-    else:
-        logger.error(
-            "No LLM provider keys configured. "
-            "Set OPENAI_API_KEY, GROQ_API_KEY, OPENROUTER_API_KEY, or GEMINI_API_KEY."
-        )
-
-    if missing_list:
-        logger.warning(
-            "Missing LLM provider keys for: "
-            + ", ".join(missing_list)
-        )
-
-    if preferred in env_keys and not configured.get(preferred, False):
-        logger.warning(
-            f"LLM_PROVIDER is set to '{preferred}' but {env_keys[preferred]} is not configured."
-        )
-
-    if not settings.openrouter_api_key:
-        logger.warning(
-            f"Embeddings require OPENROUTER_API_KEY (current embedding_model={settings.embedding_model})."
-        )
-
-    # ------------------------------------------------------------------
-    # Internal helpers
-    # ------------------------------------------------------------------
-
     def _is_complex_task(self, prompt: str, system: Optional[str]) -> bool:
-        """Determine if this task requires expensive AI models"""
-        # Check if expensive models are explicitly disabled
-        if not getattr(settings, 'enable_expensive_models', False):
+        """Determine if this task requires expensive AI models."""
+        if not getattr(settings, "enable_expensive_models", False):
             return False
 
-        # Simple heuristics for complexity
         total_length = len(prompt) + (len(system) if system else 0)
-
-        # Long prompts = probably complex
         if total_length > 1000:
             return True
 
-        # Keywords indicating complex analysis
         complex_keywords = [
-            'forecast', 'predict', 'analyze', 'strategy', 'intelligence',
-            'competitive', 'market', 'optimization', 'risk', 'automated'
+            "forecast",
+            "predict",
+            "analyze",
+            "strategy",
+            "intelligence",
+            "competitive",
+            "market",
+            "optimization",
+            "risk",
+            "automated",
         ]
 
         combined_text = (prompt + (system or "")).lower()
         keyword_count = sum(1 for keyword in complex_keywords if keyword in combined_text)
-
-        return keyword_count >= 2  # 2+ complex keywords = complex task
+        return keyword_count >= 2
 
     def _provider_chain(self, is_complex_task: bool = False) -> List[str]:
         """
-        Ordered list of providers to try based on configured API keys and cost optimization.
+        Ordered list of providers to try based on configured API keys.
+        OpenAI is the primary provider, with Groq as the first fallback.
         """
         chain: List[str] = []
         preferred: List[str] = []
@@ -315,14 +270,11 @@ def log_provider_configuration() -> None:
             preferred.append(self.provider)
 
         if is_complex_task:
-            # For complex tasks, prioritize capability over cost
             ordering = preferred + ["openai", "groq", "openrouter", "gemini"]
         else:
-            # For simple tasks, prioritize the cheapest primary provider
-            ordering = ["openai", "groq", "openrouter", "gemini"]  # No preference, first available
+            ordering = ["openai", "groq", "openrouter", "gemini"]
 
         seen = set()
-
         for provider in ordering:
             if provider in seen:
                 continue
@@ -333,13 +285,8 @@ def log_provider_configuration() -> None:
             elif provider == "groq" and self.groq_api_key:
                 chain.append("groq")
             elif provider == "openrouter" and self.openrouter_api_key:
-                # For complex tasks, prefer better OpenRouter models if expensive models enabled
-                if is_complex_task and hasattr(settings, 'openrouter_reasoning_model'):
-                    # Already configured for better models in settings
-                    pass
                 chain.append("openrouter")
             elif provider == "gemini" and self.gemini_api_key:
-                # Only use Gemini for complex tasks if expensive models enabled
                 if is_complex_task or self.provider == "gemini":
                     chain.append("gemini")
 
@@ -526,9 +473,7 @@ def log_provider_configuration() -> None:
                 return content
 
     async def _ping_provider(self, provider: str) -> bool:
-        """
-        Lightweight provider probe used for readiness checks.
-        """
+        """Lightweight provider probe used for readiness checks."""
         try:
             if provider == "groq" and self.groq_api_key:
                 headers = self._groq_headers
@@ -572,6 +517,50 @@ def log_provider_configuration() -> None:
             logger.warning(f"{provider} health check failed: {exc}")
 
         return False
+
+def log_provider_configuration() -> None:
+    configured = {
+        "openai": bool(settings.openai_api_key),
+        "groq": bool(settings.groq_api_key),
+        "openrouter": bool(settings.openrouter_api_key),
+        "gemini": bool(settings.gemini_api_key),
+    }
+    env_keys = {
+        "openai": "OPENAI_API_KEY",
+        "groq": "GROQ_API_KEY",
+        "openrouter": "OPENROUTER_API_KEY",
+        "gemini": "GEMINI_API_KEY",
+    }
+    configured_list = [name for name, enabled in configured.items() if enabled]
+    missing_list = [name for name, enabled in configured.items() if not enabled]
+    preferred = (settings.llm_provider or "openai").lower()
+
+    if configured_list:
+        logger.info(
+            "LLM provider keys configured: "
+            + ", ".join(configured_list)
+        )
+    else:
+        logger.error(
+            "No LLM provider keys configured. "
+            "Set OPENAI_API_KEY, GROQ_API_KEY, OPENROUTER_API_KEY, or GEMINI_API_KEY."
+        )
+
+    if missing_list:
+        logger.warning(
+            "Missing LLM provider keys for: "
+            + ", ".join(missing_list)
+        )
+
+    if preferred in env_keys and not configured.get(preferred, False):
+        logger.warning(
+            f"LLM_PROVIDER is set to '{preferred}' but {env_keys[preferred]} is not configured."
+        )
+
+    if not settings.openrouter_api_key:
+        logger.warning(
+            f"Embeddings require OPENROUTER_API_KEY (current embedding_model={settings.embedding_model})."
+        )
 
 # Backwards compatible alias for clarity
 CloudLLMClient = CloudLLMClient

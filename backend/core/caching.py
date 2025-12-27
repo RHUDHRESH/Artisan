@@ -12,7 +12,7 @@ import asyncio
 from datetime import timedelta
 
 import redis.asyncio as redis
-from backend.core.config import settings
+from backend.config import settings
 from backend.core.monitoring import cache_hits_total, cache_misses_total, get_logger
 
 logger = get_logger("cache")

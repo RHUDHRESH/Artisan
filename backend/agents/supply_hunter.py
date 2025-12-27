@@ -3,14 +3,12 @@ Enhanced Supply Hunter Agent - Autonomous Supply Chain Intelligence
 Features: Strategic sourcing, real-time market analysis, autonomous negotiation, predictive analytics
 """
 from typing import Dict, List, Optional, Any
-from datetime import datetime, timedelta
 import asyncio
 import json
 from loguru import logger
 
 from backend.agents.base_agent import BaseAgent
-from loguru import logger
-import json
+from backend.scraping.web_scraper import WebScraperService
 
 
 class SupplyHunterAgent(BaseAgent):
@@ -33,7 +31,7 @@ class SupplyHunterAgent(BaseAgent):
             cloud_llm_client=cloud_llm_client,
             vector_store=vector_store
         )
-        self.scraper = scraper_service
+        self.scraper = scraper_service or WebScraperService()
         self.supplier_network = {}  # Known suppliers with performance data
         self.market_intelligence = {}  # Market trends and price data
         self.negotiation_history = []  # Past negotiations and outcomes
@@ -47,49 +45,122 @@ class SupplyHunterAgent(BaseAgent):
         """
         Enhanced autonomous supply chain analysis
         """
-        self.log_execution("autonomous_analysis_start", {"craft": user_profile.get("craft_type")})
-        
-        # Comprehensive supply chain intelligence
-        supply_chain_intel = await self._comprehensive_supply_chain_analysis(user_profile)
-        
-        # Strategic sourcing recommendations  
-        sourcing_strategy = await self._strategic_sourcing_analysis(user_profile)
-        
-        # Risk assessment and mitigation
-        risk_analysis = await self._supply_chain_risk_assessment(user_profile)
-        
-        # Autonomous negotiation strategy
-        negotiation_strategy = await self._autonomous_negotiation_strategy(user_profile)
-        
-        # Generate comprehensive business intelligence
-        return await self._generate_supply_chain_intelligence_report(
-            user_profile, supply_chain_intel, sourcing_strategy, risk_analysis, negotiation_strategy
-        )
+        self.clear_logs()
+        craft_type = str(user_profile.get("craft_type") or "general craft").strip()
+        location = user_profile.get("location") if isinstance(user_profile.get("location"), dict) else {}
+        supplies = user_profile.get("supplies_needed") or user_profile.get("supplies") or []
 
-        # Additional analysis: Generate comprehensive supplier analysis report
-        if all_suppliers:
+        if isinstance(supplies, str):
+            supplies = [item.strip() for item in supplies.split(",") if item.strip()]
+        if not isinstance(supplies, list):
+            supplies = []
+        supplies = [item.strip() for item in supplies if isinstance(item, str) and item.strip()]
+
+        if not supplies:
+            craft_defaults = {
+                "pottery": ["clay", "pottery glaze", "pigments"],
+                "weaving": ["yarn", "dye", "thread"],
+                "metalwork": ["metal sheets", "tools", "polish"],
+                "woodwork": ["wood", "varnish", "carving tools"],
+                "jewelry": ["silver", "gold", "stones", "jewelry tools"],
+                "textile": ["fabric", "dyes", "sewing tools"],
+                "leatherwork": ["leather", "tools", "dyes"],
+                "glasswork": ["glass", "kiln", "tools"],
+                "ceramic": ["clay", "glazes", "kiln"],
+                "painting": ["canvas", "paints", "brushes"]
+            }
+            supplies = craft_defaults.get(craft_type.lower(), ["raw materials", "tools", "supplies"])
+
+        supplies = supplies[:5]
+        self.log_execution("start", {
+            "craft_type": craft_type,
+            "supplies_needed": supplies,
+            "location": location
+        })
+
+        search_logs: List[Dict] = []
+        all_suppliers: List[Dict] = []
+        warnings: List[str] = []
+
+        for supply in supplies:
+            self.log_execution("searching_supply", {"supply": supply})
+            try:
+                result = await self._search_suppliers_india(supply, craft_type, location)
+            except Exception as exc:
+                message = f"Search failed for '{supply}': {exc}"
+                logger.error(message)
+                warnings.append(message)
+                self.log_execution("error", {"step": "search_suppliers", "error": message, "supply": supply})
+                continue
+
+            if isinstance(result, dict) and result.get("error"):
+                message = f"Search error for '{supply}': {result.get('error')}"
+                warnings.append(message)
+                self.log_execution("error", {"step": "search_suppliers", "error": result.get("error"), "supply": supply})
+                continue
+
+            all_suppliers.extend(result.get("suppliers", []))
+            search_logs.extend(result.get("search_logs", []))
+
+        unique_suppliers = self._deduplicate_suppliers(all_suppliers)
+        normalized_suppliers: List[Dict] = []
+
+        for supplier in unique_suppliers:
+            normalized = dict(supplier)
+            supplier_location = normalized.get("location")
+            if not isinstance(supplier_location, dict):
+                supplier_location = {}
+            for key in ("city", "state", "country"):
+                if location.get(key) and not supplier_location.get(key):
+                    supplier_location[key] = location.get(key)
+            normalized["location"] = supplier_location
+
+            products = normalized.get("products")
+            if not isinstance(products, list) or not products:
+                normalized["products"] = list(supplies)
+
+            contact = normalized.get("contact")
+            if not isinstance(contact, dict):
+                contact = {}
+            if normalized.get("source_url") and not contact.get("website"):
+                contact["website"] = normalized.get("source_url")
+            normalized["contact"] = contact
+
+            if not isinstance(normalized.get("verification"), dict):
+                normalized["verification"] = self._basic_verification(normalized)
+
+            normalized_suppliers.append(normalized)
+
+        india_count = sum(
+            1 for supplier in normalized_suppliers
+            if str(supplier.get("location", {}).get("country", "")).lower() == "india"
+        )
+        global_count = len(normalized_suppliers) - india_count
+
+        self.log_execution("complete", {
+            "total_found": len(normalized_suppliers),
+            "india_suppliers": india_count,
+            "global_suppliers": global_count
+        })
+
+        analysis_report = None
+        if normalized_suppliers:
             analysis_report = await self._generate_supplier_analysis_report(
-                all_suppliers, supplies, craft_type, location
+                normalized_suppliers, supplies, craft_type, location
             )
 
-            return {
-                "suppliers": all_suppliers,
-                "supplier_analysis": analysis_report,
-                "search_logs": search_logs,
-                "total_suppliers_found": len(all_suppliers),
-                "india_suppliers": india_count,
-                "global_suppliers": global_count,
-                "execution_logs": self.get_logs()
-            }
-
-        return {
-            "suppliers": all_suppliers,
+        response = {
+            "suppliers": normalized_suppliers,
+            "supplier_analysis": analysis_report,
             "search_logs": search_logs,
-            "total_suppliers_found": len(all_suppliers),
+            "total_suppliers_found": len(normalized_suppliers),
             "india_suppliers": india_count,
             "global_suppliers": global_count,
             "execution_logs": self.get_logs()
         }
+        if warnings:
+            response["warnings"] = warnings
+        return response
     
     async def _search_suppliers_india(
         self,
@@ -105,9 +176,6 @@ class SupplyHunterAgent(BaseAgent):
         
         queries = [
             f"{supply_name} suppliers {city} {state} India",
-            f"{craft_type} {supply_name} wholesale {state}",
-            f"buy {supply_name} for {craft_type} {city}",
-            f"{supply_name} manufacturers India {state}"
         ]
         
         all_results = []
@@ -120,9 +188,9 @@ class SupplyHunterAgent(BaseAgent):
             results = await self.scraper.search(
                 query=query,
                 region="in",  # India
-                num_results=15,  # Increased from 10
-                deep_search=True,  # Use comprehensive search
-                sources=['tavily', 'serpapi']  # Try both APIs
+                num_results=4,
+                deep_search=False,
+                sources=['tavily']
             )
 
             if isinstance(results, dict) and results.get("error"):
@@ -149,7 +217,7 @@ class SupplyHunterAgent(BaseAgent):
 
             # Parse each result
             for result in results:
-                supplier_data = await self._parse_supplier_page(result)
+                supplier_data = self._build_supplier_from_search_result(result, reason="search_only")
                 if supplier_data:
                     all_results.append(supplier_data)
         
@@ -190,7 +258,7 @@ class SupplyHunterAgent(BaseAgent):
             page_content = await self.scraper.scrape_page(url)
             
             if not page_content:
-                return None
+                return self._build_supplier_from_search_result(search_result, reason="empty_page")
 
             # Use LLM to extract structured information
             self.log_execution("extracting_data", {"url": url})
@@ -230,13 +298,39 @@ Return ONLY valid JSON."""
                 supplier_data["scraped_at"] = self._get_timestamp()
                 
                 return supplier_data
-            except:
-                logger.error(f"Failed to parse supplier data from {url}")
-                return None
+            except Exception as exc:
+                logger.error(f"Failed to parse supplier data from {url}: {exc}")
+                return self._build_supplier_from_search_result(search_result, reason="parse_error")
         
         except Exception as e:
             logger.error(f"Error scraping {url}: {e}")
+            return self._build_supplier_from_search_result(search_result, reason="scrape_error")
+
+    def _build_supplier_from_search_result(self, search_result: Dict, reason: str) -> Optional[Dict]:
+        """Create a minimal supplier record from a search result."""
+        title = (search_result.get("title") or search_result.get("name") or "").strip()
+        url = (search_result.get("url") or "").strip()
+        snippet = (search_result.get("snippet") or "").strip()
+        name = title
+        if not name and url:
+            parts = url.split("/")
+            name = parts[2] if len(parts) > 2 else url
+
+        if not name and not url and not snippet:
             return None
+
+        return {
+            "name": name or "Unknown Supplier",
+            "products": [],
+            "location": {},
+            "contact": {"website": url} if url else {},
+            "pricing_info": "",
+            "business_type": "supplier",
+            "description": snippet,
+            "source_url": url,
+            "scraped_at": self._get_timestamp(),
+            "data_quality": reason
+        }
     
     async def _verify_supplier(self, supplier: Dict) -> Dict:
         """
@@ -324,6 +418,24 @@ Return ONLY valid JSON."""
                 unique.append(supplier)
 
         return unique
+
+    def _basic_verification(self, supplier: Dict) -> Dict:
+        """Provide a lightweight confidence score when full verification is unavailable."""
+        contact = supplier.get("contact") or {}
+        indicators = []
+        if contact.get("website"):
+            indicators.append("Website listed")
+        if contact.get("phone"):
+            indicators.append("Phone listed")
+        if contact.get("email"):
+            indicators.append("Email listed")
+
+        confidence = 0.3 + (0.1 * len(indicators))
+        return {
+            "confidence": min(confidence, 0.8),
+            "legitimacy_indicators": indicators,
+            "red_flags": []
+        }
 
     async def _generate_fallback_suppliers(self, supplies: List[str], craft_type: str, location: Dict) -> List[Dict]:
         """
@@ -714,6 +826,92 @@ Return ONLY valid JSON array."""
                 "Product quality standards met 100%",
                 "Cost savings targets achieved within 90 days"
             ]
+        }
+
+
+    async def _comprehensive_supply_chain_analysis(self, user_profile: Dict) -> Dict:
+        """
+        Comprehensive supply chain intelligence analysis
+        """
+        craft_type = user_profile.get("craft_type", "unknown")
+        supplies_needed = user_profile.get("supplies_needed", [])
+        location = user_profile.get("location", {})
+        
+        # Mock supply chain analysis for now
+        return {
+            "market_analysis": {
+                "demand_trend": "stable",
+                "price_volatility": "low",
+                "supplier_availability": "high"
+            },
+            "risk_assessment": {
+                "supply_chain_risks": ["seasonal_demand", "price_fluctuations"],
+                "mitigation_strategies": ["multiple_suppliers", "bulk_purchasing"]
+            },
+            "sourcing_strategy": {
+                "recommended_suppliers": 3,
+                "quality_tiers": ["premium", "standard"],
+                "payment_terms": ["net30", "net60"]
+            },
+            "cost_analysis": {
+                "estimated_costs": {"clay": 50, "glazes": 100},
+                "lead_times": {"local": 7, "imported": 21},
+                "quality_ratings": {"local": 4.2, "imported": 4.5}
+            }
+        }
+
+
+    async def _strategic_sourcing_analysis(self, user_profile: Dict) -> Dict:
+        """
+        Strategic sourcing analysis and recommendations
+        """
+        craft_type = user_profile.get("craft_type", "unknown")
+        supplies_needed = user_profile.get("supplies_needed", [])
+        location = user_profile.get("location", {})
+        
+        # Mock strategic sourcing analysis
+        return {
+            "sourcing_recommendations": {
+                "primary_strategy": "local_first",
+                "backup_strategy": "regional_expansion",
+                "global_contingency": True
+            },
+            "supplier_prioritization": {
+                "quality_weight": 0.4,
+                "cost_weight": 0.3,
+                "reliability_weight": 0.2,
+                "location_weight": 0.1
+            },
+            "negotiation_leverage": {
+                "bulk_potential": "medium",
+                "relationship_opportunities": "high",
+                "alternative_options": "good"
+            }
+        }
+
+
+    async def _supply_chain_risk_assessment(self, user_profile: Dict) -> Dict:
+        """Supply chain risk assessment"""
+        return {
+            "risk_level": "medium",
+            "identified_risks": ["seasonal_demand", "price_volatility"],
+            "mitigation_strategies": ["diversify_suppliers", "safety_stock"]
+        }
+
+    async def _autonomous_negotiation_strategy(self, user_profile: Dict) -> Dict:
+        """Autonomous negotiation strategy"""
+        return {
+            "negotiation_approach": "collaborative",
+            "key_leverage_points": ["bulk_pricing", "long_term_partnership"],
+            "target_outcomes": ["cost_reduction", "quality_assurance"]
+        }
+
+    async def _generate_supply_chain_intelligence_report(self, user_profile, supply_chain_intel, sourcing_strategy, risk_analysis, negotiation_strategy) -> Dict:
+        """Generate comprehensive supply chain intelligence report"""
+        return {
+            "summary": "Supply chain analysis complete",
+            "recommendations": ["Local suppliers preferred", "Maintain backup options"],
+            "next_steps": ["Contact top 3 suppliers", "Request samples"]
         }
 
 

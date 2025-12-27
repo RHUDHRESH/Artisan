@@ -94,10 +94,15 @@ app.add_middleware(
 
 
 @app.on_event("startup")
-async def validate_llm_provider_keys() -> None:
+async def startup_events():
+    """Application startup events"""
+    # Create database tables
+    from backend.core.database import create_tables
+    create_tables()
+    
+    # Validate LLM provider keys if heavy features enabled
     if settings.enable_heavy_features:
         from backend.core.cloud_llm_client import log_provider_configuration
-
         log_provider_configuration()
     else:
         logger.info("Skipping LLM provider validation in minimal mode.")
@@ -197,7 +202,7 @@ if settings.enable_heavy_features:
     
     try:
         # Include full routers
-        from backend.api.routes import chat, agents, maps, search, context, settings as settings_router, orchestration, monitoring
+        from backend.api.routes import chat, agents, maps, search, context, settings as settings_router, orchestration, monitoring, council, campaigns, moves, notifications, radar, muse, payments, speed_daemon
         from fastapi import WebSocket
         
         app.include_router(chat.router)
@@ -208,6 +213,14 @@ if settings.enable_heavy_features:
         app.include_router(settings_router.router)
         app.include_router(orchestration.router)
         app.include_router(monitoring.router)
+        app.include_router(council.router)
+        app.include_router(campaigns.router)
+        app.include_router(moves.router)
+        app.include_router(notifications.router)
+        app.include_router(radar.router)
+        app.include_router(muse.router)
+        app.include_router(payments.router)
+        app.include_router(speed_daemon.router)
         logger.info("✓ All API routes loaded")
         
         @app.websocket("/ws")

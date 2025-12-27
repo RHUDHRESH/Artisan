@@ -68,6 +68,9 @@ class Settings(BaseSettings):
     # Redis configuration
     redis_url: str = "redis://localhost:6379"
 
+    # Database configuration
+    database_url: str = "sqlite:///./data/artisan.db"
+
     # Backend URL (for frontend)
     backend_url: str = "http://localhost:8000"
 
@@ -89,23 +92,24 @@ settings = Settings()
 # Note: Pydantic Settings already loads from .env, but we explicitly
 # override for clarity and additional environment variables
 env_overrides = {
-    "LLM_PROVIDER": "llm_provider",
+    "OPENAI_API_KEY": "openai_api_key",
     "GROQ_API_KEY": "groq_api_key",
+    "OPENROUTER_API_KEY": "openrouter_api_key",
+    "GEMINI_API_KEY": "gemini_api_key",
     "TAVILY_API_KEY": "tavily_api_key",
     "SERPAPI_KEY": "serpapi_key",
-    "OPENROUTER_API_KEY": "openrouter_api_key",
-    "OPENROUTER_BASE_URL": "openrouter_base_url",
-    "OPENROUTER_REASONING_MODEL": "openrouter_reasoning_model",
-    "OPENROUTER_FAST_MODEL": "openrouter_fast_model",
-    "GEMINI_API_KEY": "gemini_api_key",
-    "GEMINI_MODEL": "gemini_model",
-    "OPENAI_API_KEY": "openai_api_key",
-    "OPENAI_REASONING_MODEL": "openai_reasoning_model",
-    "OPENAI_FAST_MODEL": "openai_fast_model",
-    "LOG_LEVEL": "log_level",
-    "EMBEDDING_MODEL": "embedding_model",
+    "LLM_PROVIDER": "llm_provider",
     "REASONING_MODEL": "reasoning_model",
     "FAST_MODEL": "fast_model",
+    "EMBEDDING_MODEL": "embedding_model",
+    "OPENAI_REASONING_MODEL": "openai_reasoning_model",
+    "OPENAI_FAST_MODEL": "openai_fast_model",
+    "OPENROUTER_REASONING_MODEL": "openrouter_reasoning_model",
+    "OPENROUTER_FAST_MODEL": "openrouter_fast_model",
+    "GEMINI_MODEL": "gemini_model",
+    "OPENROUTER_BASE_URL": "openrouter_base_url",
+    "ENABLE_EXPENSIVE_MODELS": "enable_expensive_models",
+    "MAX_TOKENS_PER_REQUEST": "max_tokens_per_request",
     "BACKEND_URL": "backend_url",
     "CORS_ORIGINS": "cors_origins",
     "ENVIRONMENT": "environment",
@@ -114,6 +118,7 @@ env_overrides = {
     "SUPABASE_KEY": "supabase_key",
     "SUPABASE_JWT_SECRET": "supabase_jwt_secret",
     "REDIS_URL": "redis_url",
+    "DATABASE_URL": "database_url",
     "ENABLE_HEAVY_FEATURES": "enable_heavy_features",
     "PORT": "port",
 }

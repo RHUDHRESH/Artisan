@@ -20,12 +20,26 @@ interface ProductionGateProps {
   initialAnswers: Record<string, string>;
 }
 
+interface FlightCheck {
+  status: string;
+  message?: string;
+  details?: any;
+}
+
+interface FlightCheckStatus {
+  overall_status: string;
+  timestamp: string;
+  checks: Record<string, FlightCheck>;
+  errors?: any[];
+  action_items?: any[];
+}
+
 export function ProductionGate({ initialAnswers }: ProductionGateProps) {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [activeView, setActiveView] = useState("dashboard");
   const [backendHealth, setBackendHealth] = useState<any>(null);
   const [backendHealthError, setBackendHealthError] = useState<string | null>(null);
-  const [flightCheckStatus, setFlightCheckStatus] = useState<any>(null);
+  const [flightCheckStatus, setFlightCheckStatus] = useState<FlightCheckStatus | null>(null);
   const [flightCheckRunning, setFlightCheckRunning] = useState(false);
   const [flightCheckError, setFlightCheckError] = useState<string | null>(null);
 
@@ -1104,7 +1118,7 @@ function SettingsView({
           : overallStatus === "error"
             ? "text-red-600"
             : "text-gray-600";
-  const checks = flightCheckStatus?.checks ? Object.entries(flightCheckStatus.checks) : [];
+  const checks: [string, FlightCheck][] = flightCheckStatus?.checks ? Object.entries(flightCheckStatus.checks) : [];
   const actionItems = flightCheckStatus?.action_items || flightCheckStatus?.errors || [];
   const lastRun = flightCheckStatus?.timestamp
     ? new Date(flightCheckStatus.timestamp).toLocaleString()
@@ -1153,7 +1167,7 @@ function SettingsView({
             <div className="mt-3">
               <h4 className="text-sm font-semibold mb-2">Checks</h4>
               <div className="grid gap-2">
-                {checks.map(([name, check]) => (
+                {checks.map(([name, check]: [string, FlightCheck]) => (
                   <div key={name} className="flex items-center justify-between text-sm border rounded px-2 py-1">
                     <span className="font-medium">{name.replace(/_/g, " ")}</span>
                     <span className="text-gray-700">{check.status}</span>

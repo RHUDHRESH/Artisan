@@ -3,6 +3,8 @@ Event Scout Agent - Finds relevant events and opportunities
 """
 from typing import Dict, List, Optional
 from backend.agents.base_agent import BaseAgent
+from backend.scraping.web_scraper import WebScraperService
+from backend.services.maps_service import MapsService
 from loguru import logger
 import json
 from datetime import datetime
@@ -175,8 +177,18 @@ class EventScoutAgent(BaseAgent):
         
         all_events = []
         
-        for query in queries:
-            results = await self.scraper.search(query, region="in", num_results=5)
+        # Limit to first query only for maximum speed
+        for query in queries[:1]:
+            try:
+                results = await self.scraper.search(query, region="in", num_results=2)  # Reduced to 2
+            except Exception as exc:
+                self.log_execution("error", {
+                    "step": "web_search",
+                    "query": query,
+                    "error": str(exc),
+                    "message": "Web search failed"
+                })
+                return []
             if isinstance(results, dict) and results.get("error"):
                 self.log_execution("error", {
                     "step": "web_search",
@@ -186,79 +198,38 @@ class EventScoutAgent(BaseAgent):
                 })
                 return {"error": results}
             
-            for result in results:
-                # Scrape event details
-                content = await self.scraper.scrape_page(result['url'])
-                
-                if not content:
-                    continue
-                
-                # Extract event information with LLM
-                event_prompt = f"""Extract event information from this webpage:
-
-URL: {result['url']}
-Title: {result['title']}
-Content: {content[:1500]}
-
-Extract in JSON format:
-{{
-    "name": "event name",
-    "type": "craft_fair/exhibition/market/festival/workshop",
-    "date": "YYYY-MM-DD or date range",
-    "location": {{
-        "city": "",
-        "venue": "",
-        "address": ""
-    }},
-    "booth_cost": "cost information if mentioned",
-    "expected_footfall": "attendance numbers if mentioned",
-    "organizer": "organizer name",
-    "contact": {{
-        "phone": "",
-        "email": "",
-        "website": "{result['url']}"
-    }},
-    "booking_deadline": "deadline if mentioned",
-    "description": "brief description"
-}}
-
-If this is not an event page, return {{"name": null}}
-Return ONLY valid JSON."""
-
-                event_result = await self.cloud_llm.reasoning_task(event_prompt)
-                
+            # Process only first 2 results for speed
+            for result in results[:2]:
+                # Skip scraping for speed - just use search results
                 try:
-                    if "```json" in event_result:
-                        event_result = event_result.split("```json")[1].split("```")[0]
-                    elif "```" in event_result:
-                        event_result = event_result.split("```")[1].split("```")[0]
-                    event_data = json.loads(event_result.strip())
+                    # Extract basic info from search result without scraping
+                    event_info = {
+                        "name": result.get('title', 'Unknown Event'),
+                        "type": "craft_fair",
+                        "date": "TBD",  # Could extract from title but keeping simple
+                        "location": {
+                            "city": location.get('city', 'Unknown'),
+                            "venue": "",
+                            "address": ""
+                        },
+                        "booth_cost": "",
+                        "expected_footfall": "",
+                        "organizer": "",
+                        "contact": {
+                            "phone": "",
+                            "email": "",
+                            "website": result.get('url', '')
+                        },
+                        "booking_deadline": "",
+                        "description": result.get('snippet', '')[:200]
+                    }
                     
-                    if event_data.get("name"):
-                        # Calculate distance
-                        event_location = event_data.get("location", {})
-                        distance = await self.maps.calculate_distance(
-                            location,
-                            event_location
-                        )
+                    # Quick validation
+                    if event_info["name"] and event_info["name"] != "Unknown Event":
+                        all_events.append(event_info)
                         
-                        event_data["distance_km"] = distance
-                        
-                        # Calculate relevance score
-                        relevance = await self._calculate_event_relevance(
-                            event_data,
-                            craft_type
-                        )
-                        event_data["relevance_score"] = relevance
-                        
-                        # Add source
-                        event_data["source_url"] = result['url']
-                        event_data["scraped_at"] = self._get_timestamp()
-                        
-                        all_events.append(event_data)
-                except Exception as e:
-                    logger.debug(f"Failed to parse event from {result['url']}: {e}")
-                    continue
+                except Exception:
+                    continue  # Skip problematic results
         
         # Deduplicate by name
         unique_events = self._deduplicate_events(all_events)
@@ -279,7 +250,11 @@ Return ONLY valid JSON."""
         schemes = []
         
         for query in queries:
-            results = await self.scraper.search(query, region="in", num_results=3)
+            try:
+                results = await self.scraper.search(query, region="in", num_results=3)
+            except Exception as exc:
+                logger.warning(f"Scheme search failed for '{query}': {exc}")
+                continue
             if isinstance(results, dict) and results.get("error"):
                 self.log_execution("error", {
                     "step": "web_search",
@@ -312,7 +287,11 @@ Extract in JSON format:
 If no scheme found, return {{"scheme_name": null}}
 Return ONLY valid JSON."""
 
-                result_text = await self.cloud_llm.reasoning_task(scheme_prompt)
+                try:
+                    result_text = await self.cloud_llm.reasoning_task(scheme_prompt)
+                except Exception as exc:
+                    logger.warning(f"Scheme extraction skipped (LLM error): {exc}")
+                    continue
                 
                 try:
                     if "```json" in result_text:
@@ -346,7 +325,11 @@ Return ONLY valid JSON."""
         workshops = []
         
         for query in queries:
-            results = await self.scraper.search(query, region="in", num_results=3)
+            try:
+                results = await self.scraper.search(query, region="in", num_results=3)
+            except Exception as exc:
+                logger.warning(f"Workshop search failed for '{query}': {exc}")
+                continue
             if isinstance(results, dict) and results.get("error"):
                 self.log_execution("error", {
                     "step": "web_search",
@@ -420,7 +403,11 @@ Estimate in JSON:
 
 Amounts in Rs. Return ONLY valid JSON."""
 
-        result = await self.cloud_llm.reasoning_task(roi_prompt)
+        try:
+            result = await self.cloud_llm.reasoning_task(roi_prompt)
+        except Exception as exc:
+            logger.warning(f"ROI calculation skipped (LLM error): {exc}")
+            return {"error": "roi_unavailable", "message": "ROI calculation unavailable"}
         
         try:
             if "```json" in result:

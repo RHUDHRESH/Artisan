@@ -34,18 +34,21 @@ echo.
 
 REM Step 2: Setup Virtual Environment
 echo [2/5] Setting up virtual environment...
-if not exist .venv (
-    echo Creating virtual environment (first time only)...
-    python -m venv .venv
-    if errorlevel 1 (
-        echo ERROR: Failed to create virtual environment
-        pause
-        exit /b 1
-    )
-    echo Virtual environment created!
-) else (
-    echo Virtual environment found.
+if exist ".venv" goto VENV_EXISTS
+echo Creating virtual environment (first time only)...
+python -m venv .venv
+if errorlevel 1 (
+    echo ERROR: Failed to create virtual environment
+    pause
+    exit /b 1
 )
+echo Virtual environment created!
+goto VENV_READY
+
+:VENV_EXISTS
+echo Virtual environment found.
+
+:VENV_READY
 call .venv\Scripts\activate
 echo.
 

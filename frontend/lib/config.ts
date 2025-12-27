@@ -1,7 +1,7 @@
 // Application configuration
 export const config = {
-  apiUrl: "/api",
-  wsUrl: process.env.NEXT_PUBLIC_WS_URL || "ws://localhost:8000/ws",
+  apiUrl: process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000",
+  wsUrl: process.env.NEXT_PUBLIC_WS_URL || "ws://localhost:8000",
   environment: process.env.NODE_ENV || "development",
 } as const;
 

@@ -579,7 +579,21 @@ class WebScraperService:
                 logger.warning(f"Unexpected content type {content_type} for {url}")
                 return ""
             
-            html = await response.text()
+            # Handle encoding issues gracefully
+            try:
+                html = await response.text()
+            except UnicodeDecodeError:
+                # Try different encodings
+                try:
+                    content = await response.read()
+                    html = content.decode('utf-8', errors='ignore')
+                except Exception:
+                    try:
+                        content = await response.read()
+                        html = content.decode('latin-1', errors='ignore')
+                    except Exception:
+                        logger.warning(f"Failed to decode content for {url}")
+                        return ""
             
             # Check for common bot detection pages
             bot_indicators = [
