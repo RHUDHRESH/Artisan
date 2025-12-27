@@ -5,7 +5,6 @@ Minimal mode optimized for Render free tier deployment
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from backend.config import settings
-import os
 
 # Lightweight logging
 from loguru import logger
@@ -79,11 +78,6 @@ For issues, questions, or feature requests:
 # Setup logging
 logger.info(f"Starting Artisan Hub API v1.0.0")
 logger.info(f"Environment: {settings.environment}")
-
-# Force enable heavy features for now (temporary)
-import os
-os.environ['ENABLE_HEAVY_FEATURES'] = 'true'
-settings.enable_heavy_features = True
 
 logger.info(f"Heavy features enabled: {settings.enable_heavy_features}")
 
