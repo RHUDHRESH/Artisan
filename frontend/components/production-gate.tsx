@@ -8,6 +8,7 @@ import {
   TrendingUp,
   Calendar,
   Settings,
+  Wrench,
   Package,
   FileText,
   User
@@ -22,77 +23,109 @@ interface ProductionGateProps {
 export function ProductionGate({ initialAnswers }: ProductionGateProps) {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [activeView, setActiveView] = useState("dashboard");
+  const [backendHealth, setBackendHealth] = useState<any>(null);
+  const [backendHealthError, setBackendHealthError] = useState<string | null>(null);
   const [flightCheckStatus, setFlightCheckStatus] = useState<any>(null);
+  const [flightCheckRunning, setFlightCheckRunning] = useState(false);
+  const [flightCheckError, setFlightCheckError] = useState<string | null>(null);
 
-  // Run automatic flight check on mount
-  React.useEffect(() => {
-    const runFlightCheck = async () => {
-      try {
-        const response = await fetch(buildApiUrl("/health/flight-check"));
-        if (!response.ok) {
-          const errorData = await response.json().catch(() => null);
-          setFlightCheckStatus({
-            overall_status: "error",
-            timestamp: new Date().toISOString(),
-            checks: errorData?.checks || {},
-            errors: errorData?.errors || [{
-              component: "flight_check",
-              status: "error",
-              message: `HTTP ${response.status}: ${response.statusText}`
-            }]
-          });
-          return;
-        }
-        const data = await response.json();
-        setFlightCheckStatus(data);
-
-        if (data.overall_status === "error" || data.overall_status === "unhealthy") {
-          console.error("Flight check failed:", data);
-        }
-      } catch (error: any) {
-        console.error("Failed to run flight check:", error);
+  const runFlightCheck = React.useCallback(async () => {
+    setFlightCheckRunning(true);
+    setFlightCheckError(null);
+    try {
+      const response = await fetch(buildApiUrl("/health/flight-check"));
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => null);
+        const message = `HTTP ${response.status}: ${response.statusText}`;
+        setFlightCheckError(message);
         setFlightCheckStatus({
           overall_status: "error",
           timestamp: new Date().toISOString(),
-          checks: {
-            llm_providers: {
-              status: "unknown",
-              message: "Connection failed - backend may not be running",
-              details: { error: error?.message || "Network error" }
-            },
-            llm_generation: {
-              status: "unknown",
-              message: "Cannot test - backend unreachable",
-              details: { error: error?.message || "Failed to fetch" }
-            },
-            vector_store: {
-              status: "unknown",
-              message: "Cannot check - backend unreachable",
-              details: { error: error?.message || "Failed to fetch" }
-            },
-            serpapi: {
-              status: "unknown",
-              message: "Cannot check - backend unreachable",
-              details: { error: error?.message || "Failed to fetch" }
-            },
-            websocket: {
-              status: "unknown",
-              message: "Cannot check - backend unreachable",
-              details: { error: error?.message || "Failed to fetch" }
-            }
-          },
-          errors: [{
+          checks: errorData?.checks || {},
+          errors: errorData?.errors || [{
             component: "flight_check",
             status: "error",
-            message: error?.message || "Failed to connect to backend",
-            details: { error: String(error) }
+            message
           }]
         });
+        return;
       }
-    };
+      const data = await response.json();
+      setFlightCheckStatus(data);
 
-    runFlightCheck();
+      if (data.overall_status === "error" || data.overall_status === "unhealthy" || data.overall_status === "degraded") {
+        console.error("Flight check failed:", data);
+      }
+    } catch (error: any) {
+      console.error("Failed to run flight check:", error);
+      const message = error?.message || "Failed to connect to backend";
+      setFlightCheckError(message);
+      setFlightCheckStatus({
+        overall_status: "error",
+        timestamp: new Date().toISOString(),
+        checks: {
+          llm_providers: {
+            status: "unknown",
+            message: "Connection failed - backend may not be running",
+            details: { error: error?.message || "Network error" }
+          },
+          llm_generation: {
+            status: "unknown",
+            message: "Cannot test - backend unreachable",
+            details: { error: error?.message || "Failed to fetch" }
+          },
+          vector_store: {
+            status: "unknown",
+            message: "Cannot check - backend unreachable",
+            details: { error: error?.message || "Failed to fetch" }
+          },
+          serpapi: {
+            status: "unknown",
+            message: "Cannot check - backend unreachable",
+            details: { error: error?.message || "Failed to fetch" }
+          },
+          websocket: {
+            status: "unknown",
+            message: "Cannot check - backend unreachable",
+            details: { error: error?.message || "Failed to fetch" }
+          }
+        },
+        errors: [{
+          component: "flight_check",
+          status: "error",
+          message,
+          details: { error: String(error) }
+        }]
+      });
+    } finally {
+      setFlightCheckRunning(false);
+    }
   }, []);
+
+  const fetchBackendHealth = React.useCallback(async () => {
+    try {
+      const response = await fetch(buildApiUrl("/health"));
+      if (!response.ok) {
+        const message = `HTTP ${response.status}: ${response.statusText}`;
+        setBackendHealthError(message);
+        return;
+      }
+      const data = await response.json();
+      setBackendHealth(data);
+      setBackendHealthError(null);
+    } catch (error: any) {
+      const message = error?.message || "Failed to fetch backend health";
+      setBackendHealthError(message);
+    }
+  }, []);
+
+  // Run automatic flight check + health probe on mount
+  React.useEffect(() => {
+    runFlightCheck();
+    fetchBackendHealth();
+  }, [runFlightCheck, fetchBackendHealth]);
+
+  const wsEnabled = backendHealth ? backendHealth.mode === "full" : null;
 
   const sidebarLinks = [
     {
@@ -136,6 +169,11 @@ export function ProductionGate({ initialAnswers }: ProductionGateProps) {
       icon: <LayoutDashboard className="text-neutral-700 dark:text-neutral-200 h-5 w-5 flex-shrink-0" />,
     },
     {
+      label: "Tools",
+      href: "#",
+      icon: <Wrench className="text-neutral-700 dark:text-neutral-200 h-5 w-5 flex-shrink-0" />,
+    },
+    {
       label: "Settings",
       href: "#",
       icon: <Settings className="text-neutral-700 dark:text-neutral-200 h-5 w-5 flex-shrink-0" />,
@@ -153,6 +191,7 @@ export function ProductionGate({ initialAnswers }: ProductionGateProps) {
       "Materials": "materials",
       "Context": "context",
       "Supervisor": "supervisor",
+      "Tools": "tools",
       "Settings": "settings"
     };
     return mapping[label] || label.toLowerCase();
@@ -225,7 +264,7 @@ export function ProductionGate({ initialAnswers }: ProductionGateProps) {
               <DashboardView answers={initialAnswers} />
             )}
             {activeView === "supervisor" && (
-              <SupervisorView answers={initialAnswers} />
+              <SupervisorView answers={initialAnswers} wsEnabled={wsEnabled} />
             )}
             {activeView === "tools" && (
               <ToolsView />
@@ -249,7 +288,15 @@ export function ProductionGate({ initialAnswers }: ProductionGateProps) {
               <ContextView answers={initialAnswers} />
             )}
             {activeView === "settings" && (
-              <SettingsView />
+              <SettingsView
+                backendHealth={backendHealth}
+                backendHealthError={backendHealthError}
+                flightCheckStatus={flightCheckStatus}
+                flightCheckRunning={flightCheckRunning}
+                flightCheckError={flightCheckError}
+                onRunFlightCheck={runFlightCheck}
+                wsEnabled={wsEnabled}
+              />
             )}
             {activeView === "profile" && (
               <ContextView answers={initialAnswers} />
@@ -290,7 +337,7 @@ function DashboardView({ answers }: { answers: Record<string, string> }) {
   );
 }
 
-function SupervisorView({ answers }: { answers?: Record<string, string> }) {
+function SupervisorView({ answers, wsEnabled }: { answers?: Record<string, string>; wsEnabled: boolean | null }) {
   const [goal, setGoal] = React.useState("Transform my artisan business for 200% revenue growth");
   const [maxSteps, setMaxSteps] = React.useState(6);
   const [capabilities, setCapabilities] = React.useState<string[]>(["profile_analyst", "supply_hunter", "growth_marketer", "event_scout"]);
@@ -298,9 +345,29 @@ function SupervisorView({ answers }: { answers?: Record<string, string> }) {
   const [logs, setLogs] = React.useState<any[]>([]);
   const [results, setResults] = React.useState<any>(null);
   const [error, setError] = React.useState<string | null>(null);
+  const [wsNotice, setWsNotice] = React.useState<string | null>(null);
   const wsRef = React.useRef<WebSocket | null>(null);
 
   React.useEffect(() => {
+    let isActive = true;
+    if (wsEnabled === null) {
+      return () => {
+        isActive = false;
+      };
+    }
+    if (!wsEnabled) {
+      if (wsRef.current) {
+        wsRef.current.close();
+        wsRef.current = null;
+      }
+      if (isActive) {
+        setWsNotice("Realtime updates are disabled while the backend is in minimal mode.");
+      }
+      return () => {
+        isActive = false;
+      };
+    }
+
     const ws = new WebSocket(buildWsUrl("/ws"));
     ws.onopen = () => ws.send(JSON.stringify({ type: "subscribe" }));
     ws.onmessage = (event) => {
@@ -309,10 +376,27 @@ function SupervisorView({ answers }: { answers?: Record<string, string> }) {
         setLogs(prev => [...prev, { timestamp: data.timestamp, agent: data.agent, step: data.step, message: data.message, data: data.data }]);
       }
     };
-    ws.onerror = () => setError("WebSocket connection error");
+    ws.onerror = () => {
+      if (isActive) {
+        setWsNotice("Realtime updates unavailable (WebSocket connection error).");
+      }
+    };
+    ws.onclose = () => {
+      if (isActive) {
+        setWsNotice("Realtime updates disconnected.");
+      }
+    };
     wsRef.current = ws;
-    return () => ws.close();
-  }, []);
+    setWsNotice(null);
+    return () => {
+      isActive = false;
+      ws.onopen = null;
+      ws.onmessage = null;
+      ws.onerror = null;
+      ws.onclose = null;
+      ws.close();
+    };
+  }, [wsEnabled]);
 
   const runMission = async () => {
     setRunning(true);
@@ -409,6 +493,11 @@ function SupervisorView({ answers }: { answers?: Record<string, string> }) {
           {running ? "Running AI Mission..." : "Run Full AI Analysis"}
         </button>
       </div>
+      {wsNotice && (
+        <div className="mb-4 p-3 bg-yellow-50 border-2 border-yellow-400 rounded-lg text-yellow-800 text-sm">
+          {wsNotice}
+        </div>
+      )}
 
       <div className="grid md:grid-cols-2 gap-4 mb-4">
         <div>
@@ -987,19 +1076,108 @@ function ContextView({ answers }: { answers: Record<string, string> }) {
   );
 }
 
-function SettingsView() {
+function SettingsView({
+  backendHealth,
+  backendHealthError,
+  flightCheckStatus,
+  flightCheckRunning,
+  flightCheckError,
+  onRunFlightCheck,
+  wsEnabled,
+}: {
+  backendHealth: any;
+  backendHealthError: string | null;
+  flightCheckStatus: any;
+  flightCheckRunning: boolean;
+  flightCheckError: string | null;
+  onRunFlightCheck: () => void;
+  wsEnabled: boolean | null;
+}) {
+  const overallStatus = flightCheckStatus?.overall_status || "unknown";
+  const statusTone =
+    overallStatus === "healthy"
+      ? "text-green-600"
+      : overallStatus === "warning"
+        ? "text-yellow-600"
+        : overallStatus === "degraded"
+          ? "text-orange-600"
+          : overallStatus === "error"
+            ? "text-red-600"
+            : "text-gray-600";
+  const checks = flightCheckStatus?.checks ? Object.entries(flightCheckStatus.checks) : [];
+  const actionItems = flightCheckStatus?.action_items || flightCheckStatus?.errors || [];
+  const lastRun = flightCheckStatus?.timestamp
+    ? new Date(flightCheckStatus.timestamp).toLocaleString()
+    : "Not run yet";
+
   return (
     <div>
       <h2 className="text-2xl font-bold mb-4">Settings</h2>
       <div className="space-y-4">
         <div className="border-2 border-black p-4 rounded">
           <h3 className="font-semibold mb-2">Application Status</h3>
-          <p className="text-green-600">Artisan Hub is running and ready to assist with your craft business.</p>
+          <p className="text-sm text-gray-700">
+            {backendHealth?.message || "Health check pending."}
+          </p>
+          <p className="text-sm text-gray-600 mt-1">
+            Mode: <span className="font-semibold">{backendHealth?.mode || "unknown"}</span>
+          </p>
+          {backendHealthError && (
+            <p className="text-sm text-red-600 mt-2">Health error: {backendHealthError}</p>
+          )}
         </div>
         <div className="border-2 border-black p-4 rounded">
           <h3 className="font-semibold mb-2">API Endpoints</h3>
           <p className="text-sm text-gray-600">Backend: {config.apiUrl}</p>
-          <p className="text-sm text-gray-600">WebSocket: {config.wsUrl}</p>
+          <p className="text-sm text-gray-600">
+            WebSocket: {config.wsUrl} {wsEnabled === false ? "(disabled in minimal mode)" : ""}
+          </p>
+        </div>
+        <div className="border-2 border-black p-4 rounded">
+          <div className="flex items-center justify-between mb-2">
+            <h3 className="font-semibold">Flight Check</h3>
+            <button
+              onClick={onRunFlightCheck}
+              disabled={flightCheckRunning}
+              className="px-3 py-1 text-sm bg-black text-white rounded hover:bg-gray-800 disabled:bg-gray-400"
+            >
+              {flightCheckRunning ? "Running..." : "Run Flight Check"}
+            </button>
+          </div>
+          {flightCheckError && (
+            <p className="text-sm text-red-600 mb-2">Flight check error: {flightCheckError}</p>
+          )}
+          <p className={`text-sm font-semibold ${statusTone}`}>Overall status: {overallStatus}</p>
+          <p className="text-sm text-gray-600">Last run: {lastRun}</p>
+          {checks.length > 0 && (
+            <div className="mt-3">
+              <h4 className="text-sm font-semibold mb-2">Checks</h4>
+              <div className="grid gap-2">
+                {checks.map(([name, check]) => (
+                  <div key={name} className="flex items-center justify-between text-sm border rounded px-2 py-1">
+                    <span className="font-medium">{name.replace(/_/g, " ")}</span>
+                    <span className="text-gray-700">{check.status}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+          {actionItems.length > 0 && (
+            <div className="mt-3">
+              <h4 className="text-sm font-semibold mb-2">Action Items</h4>
+              <div className="grid gap-2 text-sm">
+                {actionItems.map((item: any, idx: number) => (
+                  <div key={idx} className="border rounded px-2 py-1">
+                    <div className="font-semibold">{item.component || "flight_check"}</div>
+                    <div className="text-gray-700">{item.message}</div>
+                    {item.suggestion && (
+                      <div className="text-gray-600 mt-1">Suggestion: {item.suggestion}</div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
       </div>
     </div>

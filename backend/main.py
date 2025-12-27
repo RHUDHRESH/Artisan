@@ -2,6 +2,7 @@
 Artisan Hub - FastAPI Application Entry Point
 Minimal mode optimized for Render free tier deployment
 """
+import os
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from backend.config import settings
@@ -148,6 +149,22 @@ async def health_check():
     return HealthResponse(**health_status)
 
 
+try:
+    # Flight check endpoint (always available)
+    from backend.core.flight_check import FlightCheck
+
+    @app.get("/health/flight-check")
+    async def flight_check():
+        """Comprehensive dependency and readiness report."""
+        checker = FlightCheck()
+        return await checker.run()
+
+    logger.info("Flight check endpoint enabled")
+
+except ImportError as e:
+    logger.warning(f"Could not load flight check: {e}")
+
+
 # Conditionally load heavy features
 if settings.enable_heavy_features:
     logger.info("Loading heavy features (monitoring, agents, orchestration)...")
@@ -205,21 +222,6 @@ if settings.enable_heavy_features:
         logger.error(f"Could not load API routes: {e}")
         logger.warning("Running in degraded mode - only basic endpoints available")
     
-    try:
-        # Flight check endpoint
-        from backend.core.flight_check import FlightCheck
-        
-        @app.get("/health/flight-check")
-        async def flight_check():
-            """Comprehensive dependency and readiness report."""
-            checker = FlightCheck()
-            return await checker.run()
-        
-        logger.info("✓ Flight check endpoint enabled")
-        
-    except ImportError as e:
-        logger.warning(f"Could not load flight check: {e}")
-
 else:
     logger.info("Running in MINIMAL mode - heavy features disabled")
     logger.info("To enable full features, set ENABLE_HEAVY_FEATURES=true")

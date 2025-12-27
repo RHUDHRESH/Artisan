@@ -8,6 +8,7 @@ import importlib
 import os
 import platform
 import sys
+from pathlib import Path
 from datetime import datetime
 from typing import Any, Dict, List, Optional
 
@@ -25,6 +26,7 @@ from backend.constants import (
 )
 from backend.core.cloud_llm_client import CloudLLMClient
 from backend.core.monitoring import get_logger
+from backend.core.vector_store import ArtisanVectorStore
 
 
 class FlightCheck:
