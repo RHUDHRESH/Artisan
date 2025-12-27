@@ -98,6 +98,16 @@ app.add_middleware(
 )
 
 
+@app.on_event("startup")
+async def validate_llm_provider_keys() -> None:
+    if settings.enable_heavy_features:
+        from backend.core.cloud_llm_client import log_provider_configuration
+
+        log_provider_configuration()
+    else:
+        logger.info("Skipping LLM provider validation in minimal mode.")
+
+
 @app.get("/")
 async def root():
     """Root endpoint"""
