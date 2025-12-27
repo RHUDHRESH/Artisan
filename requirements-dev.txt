@@ -1,4 +1,5 @@
 pytest>=7.4.0
+# Plugins required by backend/pytest.ini options.
 pytest-asyncio>=0.21.0
 pytest-cov>=4.1.0
 pytest-xdist>=3.5.0
