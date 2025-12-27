@@ -1,0 +1,45 @@
+"""
+Enhanced requirements for web scraping dependencies
+"""
+
+# Core web scraping dependencies
+aiohttp>=3.8.0
+beautifulsoup4>=4.11.0
+playwright>=1.40.0
+lxml>=4.9.0
+
+# Rate limiting and caching
+redis>=4.5.0  # Optional: for distributed caching
+diskcache>=5.6.0  # File-based caching fallback
+
+# Proxy support
+aiohttp-socks>=0.8.0  # SOCKS proxy support
+
+# Performance monitoring
+psutil>=5.9.0  # System monitoring
+prometheus-client>=0.16.0  # Metrics export
+
+# Error handling and retry
+tenacity>=8.2.0  # Retry mechanisms
+
+# Content processing
+html5lib>=1.1  # Alternative HTML parser
+readability-lxml>=0.8.1  # Content extraction
+trafilatura>=1.6.0  # Web content extraction
+
+# Anti-detection
+fake-useragent>=1.4.0  # User agent rotation
+cloudscraper>=1.2.60  # Cloudflare bypass
+
+# Data validation
+pydantic>=2.0.0
+
+# Testing
+pytest>=7.0.0
+pytest-asyncio>=0.21.0
+pytest-mock>=3.10.0
+
+# Development
+black>=23.0.0
+flake8>=6.0.0
+mypy>=1.0.0

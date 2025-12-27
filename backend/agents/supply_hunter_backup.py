@@ -65,6 +65,33 @@ class SupplyHunterAgent(BaseAgent):
         return await self._generate_supply_chain_intelligence_report(
             user_profile, supply_chain_intel, sourcing_strategy, risk_analysis, negotiation_strategy
         )
+        # If no suppliers found, generate fallback practical suppliers
+        if not all_suppliers:
+            self.log_execution("generating_fallback", {"reason": "no suppliers found from web search"})
+            all_suppliers = await self._generate_fallback_suppliers(supplies, craft_type, location)
+            self.log_execution("fallback_suppliers", {"count": len(all_suppliers)})
+        elif len(all_suppliers) < 3:
+            # Even if we found some, boost with a fallback supplier if less than 3
+            fallback_suppliers = await self._generate_fallback_suppliers(supplies, craft_type, location)
+            for fallback in fallback_suppliers:
+                # Check if we already have this supplier (avoid duplicates)
+                existing_names = {s.get('name', '').lower() for s in all_suppliers}
+                if fallback.get('name', '').lower() not in existing_names:
+                    all_suppliers.append(fallback)
+                    self.log_execution("adding_fallback_supplier", {"name": fallback.get('name')})
+                    if len(all_suppliers) >= 5:  # Don't add too many
+                        break
+            self.log_execution("boosted_with_fallbacks", {"total_now": len(all_suppliers)})
+
+        # Count India vs global suppliers
+        india_count = sum(1 for s in all_suppliers if s.get("location", {}).get("country") == "India")
+        global_count = len(all_suppliers) - india_count
+
+        self.log_execution("complete", {
+            "total_found": len(all_suppliers),
+            "india_suppliers": india_count,
+            "global_suppliers": global_count
+        })
 
         # Additional analysis: Generate comprehensive supplier analysis report
         if all_suppliers:

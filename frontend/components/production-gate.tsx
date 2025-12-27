@@ -351,6 +351,52 @@ function SupervisorView({ answers }: { answers?: Record<string, string> }) {
     }
   };
 
+  // Enhanced autonomous agent execution
+  const runAutonomousMission = async () => {
+    setRunning(true);
+    setResults(null);
+    setError(null);
+    setLogs([]);
+    try {
+      const ctx = answers || JSON.parse(localStorage.getItem("questionnaireAnswers") || "{}");
+      const body = {
+        goal: "Execute comprehensive autonomous business intelligence analysis",
+        context: {
+          craft_type: ctx.craft_type || "pottery",
+          supplies_needed: (ctx.supplies || "clay,glazes,pigments").split(",").map((s: string) => s.trim()),
+          location: { city: ctx.location?.split(",")[0] || "Jaipur", state: ctx.location?.split(",")[1] || "Rajasthan" },
+          current_products: (ctx.products || "plates,vases,bowls").split(",").map((s: string) => s.trim()),
+          input_text: Object.values(ctx).join(" "),
+          autonomous_mode: true,
+          intelligence_level: "maximum"
+        },
+        constraints: { 
+          max_steps: 10, 
+          step_timeout_s: 120, 
+          retries: 3, 
+          region_priority: "in-first",
+          autonomous_execution: true
+        },
+        capabilities: ["profile_analyst", "supply_hunter", "growth_marketer", "event_scout"]
+      };
+      const resp = await fetch(buildApiUrl("/agents/god-mode/intelligence"), {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body)
+      });
+      if (!resp.ok) {
+        const err = await resp.json().catch(() => ({ detail: `HTTP ${resp.status}` }));
+        throw new Error(err.detail || `Request failed: ${resp.status}`);
+      }
+      const data = await resp.json();
+      setResults(data);
+    } catch (e: any) {
+      setError(e?.message || "Autonomous mission failed");
+    } finally {
+      setRunning(false);
+    }
+  };
+
   return (
     <div>
       <div className="flex justify-between items-center mb-4">

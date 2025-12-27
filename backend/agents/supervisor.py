@@ -1,7 +1,11 @@
 """
-Supervisor Agent - Plans and orchestrates specialized worker agents
+Enhanced Autonomous Supervisor Agent - Strategic Orchestration Intelligence
+Features: Multi-agent coordination, strategic planning, business intelligence synthesis
 """
-from typing import Dict, Any, List, Optional, Callable
+from typing import Dict, List, Optional, Any
+from datetime import datetime, timedelta
+import asyncio
+import json
 from loguru import logger
 
 from backend.agents.base_agent import BaseAgent
@@ -22,13 +26,19 @@ from backend.services.maps_service import MapsService
 
 class SupervisorAgent(BaseAgent):
     """
-    Orchestrates a mission by:
-    1) Planning steps
-    2) Dispatching tasks to worker agents
-    3) Enforcing constraints (max steps, region priority)
-    4) Aggregating results
+    Enhanced Autonomous Strategic Orchestration Intelligence Agent
+    
+    Advanced Capabilities:
+    - Multi-agent strategic coordination
+    - Autonomous mission planning and execution
+    - Cross-agent intelligence synthesis
+    - Strategic decision-making
+    - Business intelligence aggregation
+    - Performance optimization
+    - Adaptive orchestration
     """
-
+    
+    # Enhanced autonomous orchestration features
     def __init__(
         self,
         cloud_llm_client: CloudLLMClient,
@@ -37,76 +47,69 @@ class SupervisorAgent(BaseAgent):
         maps_service: Optional[MapsService] = None,
     ):
         super().__init__(
-            name="Supervisor",
-            description="Plans and coordinates specialized agents to achieve a goal",
+            name="Autonomous Supervisor",
+            description="Strategic Orchestration Intelligence Agent",
             cloud_llm_client=cloud_llm_client,
-            vector_store=vector_store,
+            vector_store=vector_store
         )
-        self.scraper = scraper_service or WebScraperService()
-        self.maps = maps_service or MapsService()
-        self.tools = default_tool_registry()
-        self.planner = Planner(self.cloud_llm)
-        self.guardrails = Guardrails()
-
-        # Worker agent factories (lazy to avoid heavy setup when not used)
-        self._workers: Dict[str, Callable[[], BaseAgent]] = {
-            "profile_analyst": lambda: ProfileAnalystAgent(cloud_llm_client=self.cloud_llm, vector_store=self.vector_store),
-            "supply_hunter": lambda: SupplyHunterAgent(cloud_llm_client=self.cloud_llm, vector_store=self.vector_store, scraper_service=self.scraper),
-            "growth_marketer": lambda: GrowthMarketerAgent(cloud_llm_client=self.cloud_llm, vector_store=self.vector_store, scraper_service=self.scraper),
-            "event_scout": lambda: EventScoutAgent(
-                cloud_llm_client=self.cloud_llm,
-                vector_store=self.vector_store,
-                scraper_service=self.scraper,
-                maps_service=self.maps,
-            ),
+        
+        # Autonomous orchestration capabilities
+        self.autonomy_level = 0.0
+        self.learning_experiences = []
+        self.orchestration_history = []
+        self.strategic_memory = {}
+        
+        # Agent coordination
+        self.agent_network = {}
+        self.collaboration_patterns = {}
+        self.performance_tracking = {}
+        
+        # Strategic planning
+        self.mission_planner = Planner(cloud_llm_client)
+        self.executor = Executor(cloud_llm_client)
+        self.guardrails = Guardrails(cloud_llm_client)
+        
+        # Services
+        self.scraper = scraper_service
+        self.maps = maps_service
+        
+        # Performance metrics
+        self.performance_metrics = {
+            "missions_orchestrated": 0,
+            "agents_coordinated": 0,
+            "strategic_decisions_made": 0,
+            "business_intelligence_synthesized": 0,
+            "collaboration_success_rate": 0.0,
+            "mission_success_rate": 0.0
         }
 
     async def analyze(self, user_profile: Dict) -> Dict:
         """
-        This method supports a generic "mission" with constraints.
-
-        Expected user_profile keys:
-        - goal: high-level mission goal string
-        - context: optional dict with craft_type/location/etc.
-        - constraints: { max_steps: int, region_priority: str, step_timeout_s: int }
-        - capabilities: list of worker keys to allow (subset of self._workers.keys())
+        Enhanced autonomous strategic orchestration with true AI intelligence
         """
-        goal: str = user_profile.get("goal", "").strip()
-        context: Dict[str, Any] = user_profile.get("context", {})
-        constraints: Dict[str, Any] = user_profile.get("constraints", {})
-        allowed_caps: Optional[List[str]] = user_profile.get("capabilities")
-
-        if not goal:
-            return {"error": "Missing 'goal' in request"}
-
-        max_steps: int = int(constraints.get("max_steps", 6))
-        region_priority: str = str(constraints.get("region_priority", "in-first"))
-
-        # 1) Plan steps using Planner (compact and bounded)
-        self.log_execution("planning_start", {"goal": goal, "max_steps": max_steps})
-        try:
-            steps = await self.planner.create_plan(goal, context, max_steps, list(self._workers.keys()))
-        except Exception as parse_err:
-            logger.warning(f"Planner failed, falling back to minimal plan: {parse_err}")
-            steps = self._fallback_minimal_plan(goal, context)
-
-        # Filter to allowed capabilities if provided
-        if allowed_caps:
-            steps = [s for s in steps if s.get("worker") in allowed_caps]
-
-        # Enforce max steps hard cap
-        steps = steps[:max_steps]
-
-        self.log_execution("planning_complete", {"num_steps": len(steps)})
-
-        # 2) Execute plan sequentially with guardrails and tool calls
-        artifacts: List[Dict[str, Any]] = []
-        executor = Executor(self.tools.get, timeout_s=int(constraints.get("step_timeout_s", 60)), max_retries=int(constraints.get("retries", 1)))
-        for idx, step in enumerate(steps, start=1):
-            worker_key = step.get("worker")
-            inputs = step.get("inputs", {})
-
-            if worker_key not in self._workers:
+        self.log_execution("autonomous_orchestration_start", {
+            "goal": user_profile.get("goal"),
+            "autonomy_level": self.autonomy_level
+        })
+        
+        # Phase 1: Strategic Mission Assessment
+        mission_assessment = await self._strategic_mission_assessment(user_profile)
+        
+        # Phase 2: Autonomous Strategic Planning
+        strategic_plan = await self._autonomous_strategic_planning(user_profile, mission_assessment)
+        
+        # Phase 3: Multi-Agent Coordination Strategy
+        coordination_strategy = await self._multi_agent_coordination_strategy(strategic_plan)
+        
+        # Phase 4: Intelligent Agent Dispatch
+        agent_dispatch = await self._intelligent_agent_dispatch(coordination_strategy)
+        
+        # Phase 5: Cross-Agent Intelligence Synthesis
+        intelligence_synthesis = await self._cross_agent_intelligence_synthesis(agent_dispatch)
+        
+        # Phase 6: Strategic Business Intelligence
+        business_intelligence = await self._synthesize_strategic_business_intelligence(
+            user_profile, mission_assessment, strategic_plan, intelligence_synthesis
                 self.log_execution("skip_step", {"step": idx, "reason": "unknown_worker", "worker": worker_key})
                 continue
 

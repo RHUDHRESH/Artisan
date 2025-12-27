@@ -66,6 +66,16 @@ class SupplyHunterAgent(BaseAgent):
             user_profile, supply_chain_intel, sourcing_strategy, risk_analysis, negotiation_strategy
         )
 
+        # Count India vs global suppliers
+        india_count = sum(1 for s in all_suppliers if s.get("location", {}).get("country") == "India")
+        global_count = len(all_suppliers) - india_count
+
+        self.log_execution("complete", {
+            "total_found": len(all_suppliers),
+            "india_suppliers": india_count,
+            "global_suppliers": global_count
+        })
+
         # Additional analysis: Generate comprehensive supplier analysis report
         if all_suppliers:
             analysis_report = await self._generate_supplier_analysis_report(
