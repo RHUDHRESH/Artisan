@@ -1,6 +1,10 @@
-# Artisan Hub – All-In-One Guide
+# Artisan Hub
 
-AI-powered, privacy-first assistant that helps Indian artisans find suppliers, growth opportunities, and events. This single README replaces the previous markdown docs (`QUICK_START`, `HOW_TO_USE`, `TROUBLESHOOTING`, `DEVELOPER_GUIDE`, `DEPLOYMENT`, `ORCHESTRATION`, `MONITORING`, `CICD_SETUP`, `plan`, `todo`).
+AI-powered, privacy-first assistant that helps Indian artisans find suppliers, growth opportunities, and events.
+
+**Stack:** FastAPI, LangChain/LangGraph, CrewAI, Next.js 14, Groq (OpenRouter and Gemini as fallbacks), Tavily/SerpAPI web search, optional Supabase and Redis.
+
+Built by [Rhudhresh R](https://github.com/RHUDHRESH).
 
 ## Table of Contents
 - [Run It Locally (5 Minutes)](#run-it-locally-5-minutes)
@@ -32,7 +36,7 @@ Copy `.env.example` to `.env` and set:
 
 ### Step 2: Backend (Terminal 1)
 ```powershell
-cd "C:\Users\hp\OneDrive\Desktop\Artisan"
+cd Artisan
 .venv\Scripts\activate
 pip install -r requirements.txt      # first time
 uvicorn backend.main:app --host 0.0.0.0 --port 8000 --reload
@@ -40,7 +44,7 @@ uvicorn backend.main:app --host 0.0.0.0 --port 8000 --reload
 
 ### Step 3: Frontend (Terminal 2)
 ```powershell
-cd "C:\Users\hp\OneDrive\Desktop\Artisan\frontend"
+cd frontend
 npm install    # first time
 npm run dev
 ```
@@ -137,7 +141,7 @@ Stack highlights: FastAPI, Next.js 14, Tailwind, Framer Motion, Playwright/Beaut
 
 Setup for contributing:
 ```powershell
-cd "C:\Users\hp\OneDrive\Desktop\Artisan"
+cd Artisan
 python -m venv .venv
 .venv\Scripts\activate
 pip install -r requirements.txt
@@ -163,7 +167,7 @@ cd frontend && npm test && cd ..
 
 Useful patterns:
 - Add APIs under `backend/api/routes/`, include validation via Pydantic models.
-- Agents live in `backend/agents/`; reuse `backend/core/ollama_client.py` (cloud LLM client) and `vector_store.py`.
+- Agents live in `backend/agents/`; reuse `backend/core/cloud_llm_client.py` (cloud LLM client) and `vector_store.py`.
 - Frontend fetches use `NEXT_PUBLIC_API_URL`; WebSocket at `NEXT_PUBLIC_WS_URL`.
 
 ## Deployment
@@ -286,3 +290,8 @@ pre-commit install --hook-type commit-msg
 - App: `http://localhost:3000`
 - API docs: `http://localhost:8000/docs`
 - Need help? Check the troubleshooting cheatsheet above, then inspect backend/frontend terminal logs. If search is blocked, add `TAVILY_API_KEY` or `SERPAPI_KEY` and restart the backend.
+
+---
+
+Built by [Rhudhresh R](https://github.com/RHUDHRESH)
+
